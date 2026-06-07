@@ -1,11 +1,15 @@
 import hre from "hardhat";
 
+const { ethers } = hre;
+
 async function main() {
-  const { ethers } = hre;
   const [deployer] = await ethers.getSigners();
   console.log("Deployer:", deployer.address);
-  const admin = (process.env.ADMIN_ADDRESS ?? deployer.address) as `0x${string}`;
+
+  const admin = process.env.ADMIN_ADDRESS ?? deployer.address;
   console.log("Admin:", admin);
+
+  const isAdminDeployer = admin.toLowerCase() === deployer.address.toLowerCase();
 
   const ProtocolFees = await ethers.getContractFactory("ProtocolFees");
   const protocolFees = await ProtocolFees.deploy(admin, admin);
@@ -48,7 +52,7 @@ async function main() {
   );
   await multisend.waitForDeployment();
 
-  if (admin.toLowerCase() === deployer.address.toLowerCase()) {
+  if (isAdminDeployer) {
     await (await points.setModule(await router.getAddress(), true)).wait();
     await (await points.setModule(await staking.getAddress(), true)).wait();
     await (await points.setModule(await multisend.getAddress(), true)).wait();
@@ -59,20 +63,14 @@ async function main() {
   }
 
   const seed = ethers.parseUnits("100000", 18);
-  if (admin.toLowerCase() === deployer.address.toLowerCase()) {
-    await (await tokenA.mint(deployer.address, seed)).wait();
-    await (await tokenB.mint(deployer.address, seed)).wait();
-  } else {
-    console.log(
-      "Skipping token mints because deployer != admin. Mint + addLiquidity from admin wallet after deploy."
-    );
-  }
-  await (await tokenA.approve(await router.getAddress(), seed)).wait();
-  await (await tokenB.approve(await router.getAddress(), seed)).wait();
-
   const liqA = ethers.parseUnits("10000", 18);
   const liqB = ethers.parseUnits("10000", 18);
-  if (admin.toLowerCase() === deployer.address.toLowerCase()) {
+
+  if (isAdminDeployer) {
+    await (await tokenA.mint(deployer.address, seed)).wait();
+    await (await tokenB.mint(deployer.address, seed)).wait();
+    await (await tokenA.approve(await router.getAddress(), seed)).wait();
+    await (await tokenB.approve(await router.getAddress(), seed)).wait();
     await (
       await router.addLiquidity(
         await tokenA.getAddress(),
@@ -82,6 +80,10 @@ async function main() {
         deployer.address
       )
     ).wait();
+  } else {
+    console.log(
+      "Skipping token mints and addLiquidity because deployer != admin. Mint + addLiquidity from admin wallet after deploy."
+    );
   }
 
   const addresses = {

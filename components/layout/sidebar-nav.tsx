@@ -8,6 +8,7 @@ import { adminNav, sidebarNav } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 import { ADMIN_ADDRESS } from "@/lib/admin";
 import { useAccount } from "wagmi";
+import { Logo } from "@/components/layout/logo";
 import { OpnPriceWidget } from "@/components/layout/opn-price-widget";
 
 function isActive(pathname: string, href?: string) {
@@ -121,12 +122,7 @@ export function SidebarBrand({ onClose }: { onClose?: () => void }) {
   return (
     <div className="flex items-center justify-between gap-3 px-5 py-5">
       <Link href="/" className="flex items-center gap-3" onClick={onClose}>
-        <div className="relative flex h-10 w-10 items-center justify-center">
-          <div className="absolute inset-0 rounded-full bg-gradient-to-br from-violet-500 via-fuchsia-500 to-cyan-400 opacity-90 blur-sm" />
-          <div className="relative flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-cyan-400 text-sm font-bold text-white">
-            EF
-          </div>
-        </div>
+        <Logo size={40} priority />
         <span className="text-base font-semibold tracking-tight">EasyFlow</span>
       </Link>
       {onClose ? (

@@ -15,9 +15,9 @@
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
-    "contracts:compile": "hardhat compile",
-    "contracts:test": "hardhat test",
-    "contracts:deploy:iopn": "hardhat run scripts/deploy.ts --network iopnTestnet"
+    "contracts:compile": "hardhat compile --config hardhat.config.cjs",
+    "contracts:test": "hardhat test --config hardhat.config.cjs",
+    "contracts:deploy:iopn": "hardhat run scripts/deploy.ts --network iopnTestnet --config hardhat.config.cjs"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
@@ -38,7 +38,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.1.0",
-    "@nomicfoundation/hardhat-toolbox": "^7.0.0",
+    "@nomicfoundation/hardhat-toolbox": "^6.1.2",
     "@openzeppelin/contracts": "^5.1.0",
     "@types/node": "^20.19.42",
     "@types/react": "^18.3.12",
@@ -47,7 +47,7 @@
     "dotenv": "^16.4.7",
     "eslint": "^8.57.1",
     "eslint-config-next": "^16.2.7",
-    "hardhat": "^3.8.0",
+    "hardhat": "^2.28.6",
     "postcss": "^8.5.3",
     "prisma": "^6.19.3",
     "tailwindcss": "^3.4.17",
