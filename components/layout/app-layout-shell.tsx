@@ -39,8 +39,8 @@ export function AppLayoutShell({ children }: { children: React.ReactNode }) {
           sidebarCollapsed ? "w-[72px]" : "w-[260px]"
         )}
       >
-        <SidebarBrand collapsed={sidebarCollapsed} />
-        <SidebarNav collapsed={sidebarCollapsed} onToggleCollapse={toggleSidebar} />
+        <SidebarBrand collapsed={sidebarCollapsed} onToggleCollapse={toggleSidebar} />
+        <SidebarNav collapsed={sidebarCollapsed} />
       </aside>
 
       {/* Mobile drawer backdrop */}
