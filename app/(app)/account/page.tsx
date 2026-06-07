@@ -7,6 +7,7 @@ import { Wallet, Award, Coins } from "lucide-react";
 import { usePoints } from "@/lib/hooks/usePoints";
 import { useStaking } from "@/lib/hooks/useStaking";
 import { PointsProgress } from "@/components/dashboard/points-progress";
+import { formatBalanceAmount } from "@/lib/format-balance";
 
 export default function AccountPage() {
   const { address, isConnected } = useAccount();
@@ -22,7 +23,7 @@ export default function AccountPage() {
         <div className="grid gap-4 md:grid-cols-3">
           <StatCard
             title="Wallet"
-            value={bal ? `${Number(bal.formatted).toFixed(2)} ${bal.symbol}` : "—"}
+            value={bal ? `${formatBalanceAmount(bal)} ${bal.symbol}` : "—"}
             sub={address ?? "Not connected"}
             icon={Wallet}
           />

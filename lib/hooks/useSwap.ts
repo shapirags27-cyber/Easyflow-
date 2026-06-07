@@ -4,17 +4,18 @@ import * as React from "react";
 import { formatUnits, type Address } from "viem";
 import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { contracts } from "@/lib/contracts";
+import { getTokenAddress } from "@/lib/tokens";
 import { ammRouterAbi, erc20Abi } from "@/lib/abis";
 
-type TokenRef = { symbol: "A" | "B"; address: Address; decimals: number };
+type TokenRef = { symbol: string; address: Address; decimals: number };
 
 export function useSwap() {
   const { address } = useAccount();
-  const [tokenInSym, setTokenInSym] = React.useState<"A" | "B">("A");
-  const [tokenOutSym, setTokenOutSym] = React.useState<"A" | "B">("B");
+  const [tokenInSym, setTokenInSym] = React.useState("OPN");
+  const [tokenOutSym, setTokenOutSym] = React.useState("tUSDT");
 
-  const tokenInAddr = (tokenInSym === "A" ? contracts.tokenA : contracts.tokenB) as Address;
-  const tokenOutAddr = (tokenOutSym === "A" ? contracts.tokenA : contracts.tokenB) as Address;
+  const tokenInAddr = getTokenAddress(tokenInSym);
+  const tokenOutAddr = getTokenAddress(tokenOutSym);
 
   const { data: inDecimals } = useReadContract({
     address: tokenInAddr,
@@ -48,7 +49,8 @@ export function useSwap() {
         amountIn === 0n ||
         !contracts.ammRouter ||
         tokenIn.address === "0x0000000000000000000000000000000000000000" ||
-        tokenOut.address === "0x0000000000000000000000000000000000000000"
+        tokenOut.address === "0x0000000000000000000000000000000000000000" ||
+        tokenIn.address.toLowerCase() === tokenOut.address.toLowerCase()
       ) {
         setQuotedOut(0n);
         return;
@@ -115,13 +117,11 @@ export function useSwap() {
   const priceText =
     quotedOut === 0n ? "—" : `~ ${formattedOut} ${tokenOut.symbol} for 1 ${tokenIn.symbol} (est.)`;
 
-  const canSwap = tokenInSym !== tokenOutSym;
+  const canSwap = tokenIn.address.toLowerCase() !== tokenOut.address.toLowerCase();
 
   const setTokenInOut = (a: string, b: string) => {
-    const ai = (a === "B" ? "B" : "A") as "A" | "B";
-    const bi = (b === "A" ? "A" : "B") as "A" | "B";
-    setTokenInSym(ai);
-    setTokenOutSym(bi);
+    setTokenInSym(a);
+    setTokenOutSym(b);
   };
 
   return {
@@ -138,4 +138,3 @@ export function useSwap() {
     isPending
   };
 }
-

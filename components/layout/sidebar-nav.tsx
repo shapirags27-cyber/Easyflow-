@@ -1,140 +1,195 @@
-"use client";
-
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { ChevronDown, X } from "lucide-react";
-import * as React from "react";
-import { adminNav, sidebarNav } from "@/lib/nav";
-import { cn } from "@/lib/utils";
-import { ADMIN_ADDRESS } from "@/lib/admin";
-import { useAccount } from "wagmi";
-import { Logo } from "@/components/layout/logo";
-import { OpnPriceWidget } from "@/components/layout/opn-price-widget";
-
-function isActive(pathname: string, href?: string) {
-  if (!href) return false;
-  return pathname === href || (href !== "/dashboard" && pathname.startsWith(href));
-}
-
-export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
-  const pathname = usePathname();
-  const { address } = useAccount();
-  const isAdmin = Boolean(address?.toLowerCase() === ADMIN_ADDRESS.toLowerCase());
-  const [swapOpen, setSwapOpen] = React.useState(
-    pathname === "/swap" || pathname === "/pools"
-  );
-
-  React.useEffect(() => {
-    if (pathname === "/swap" || pathname === "/pools") setSwapOpen(true);
-  }, [pathname]);
-
-  return (
-    <>
-      <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-3 py-2">
-        {sidebarNav.map((item) => {
-          if (item.children) {
-            const childActive = item.children.some((c) => pathname === c.href);
-            return (
-              <div key={item.label}>
-                <button
-                  type="button"
-                  onClick={() => setSwapOpen((o) => !o)}
-                  className={cn(
-                    "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all",
-                    childActive
-                      ? "bg-violet-600 text-white shadow-lg shadow-violet-600/25"
-                      : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-                  )}
-                >
-                  <item.icon className="h-[18px] w-[18px] shrink-0" />
-                  <span className="flex-1 text-left">{item.label}</span>
-                  <ChevronDown
-                    className={cn(
-                      "h-4 w-4 shrink-0 opacity-70 transition-transform",
-                      swapOpen && "rotate-180"
-                    )}
-                  />
-                </button>
-                {swapOpen ? (
-                  <div className="ml-9 mt-0.5 space-y-0.5 border-l border-border pl-3">
-                    {item.children.map((child) => (
-                      <Link
-                        key={child.href}
-                        href={child.href}
-                        onClick={onNavigate}
-                        className={cn(
-                          "block rounded-lg px-3 py-2 text-sm transition-colors",
-                          pathname === child.href
-                            ? "font-medium text-primary"
-                            : "text-muted-foreground hover:text-foreground"
-                        )}
-                      >
-                        {child.label}
-                      </Link>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-            );
-          }
-
-          const active = isActive(pathname, item.href);
-          return (
-            <Link
-              key={item.href}
-              href={item.href!}
-              onClick={onNavigate}
-              className={cn(
-                "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all",
-                active
-                  ? "bg-violet-600 text-white shadow-lg shadow-violet-600/25"
-                  : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-              )}
-            >
-              <item.icon className="h-[18px] w-[18px] shrink-0" />
-              {item.label}
-            </Link>
-          );
-        })}
-
-        {isAdmin ? (
-          <Link
-            href={adminNav.href}
-            onClick={onNavigate}
-            className={cn(
-              "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all",
-              pathname === adminNav.href
-                ? "bg-violet-600 text-white"
-                : "text-muted-foreground hover:bg-secondary"
-            )}
-          >
-            <adminNav.icon className="h-[18px] w-[18px]" />
-            {adminNav.label}
-          </Link>
-        ) : null}
-      </nav>
-      <OpnPriceWidget />
-    </>
-  );
-}
-
-export function SidebarBrand({ onClose }: { onClose?: () => void }) {
-  return (
-    <div className="flex items-center justify-between gap-3 px-5 py-5">
-      <Link href="/" className="flex items-center gap-3" onClick={onClose}>
-        <Logo size={40} priority />
-        <span className="text-base font-semibold tracking-tight">EasyFlow</span>
-      </Link>
-      {onClose ? (
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded-lg p-2 text-muted-foreground hover:bg-secondary lg:hidden"
-          aria-label="Close menu"
-        >
-          <X className="h-5 w-5" />
-        </button>
-      ) : null}
-    </div>
-  );
-}
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { ChevronDown, ChevronLeft, ChevronRight, X } from "lucide-react";
+import * as React from "react";
+import { adminNav, sidebarNav } from "@/lib/nav";
+import { cn } from "@/lib/utils";
+import { ADMIN_ADDRESS } from "@/lib/admin";
+import { useAccount } from "wagmi";
+import { Logo } from "@/components/layout/logo";
+import { OpnPriceWidget } from "@/components/layout/opn-price-widget";
+
+function isActive(pathname: string, href?: string) {
+  if (!href) return false;
+  return pathname === href || (href !== "/dashboard" && pathname.startsWith(href));
+}
+
+type SidebarNavProps = {
+  collapsed?: boolean;
+  onNavigate?: () => void;
+  onToggleCollapse?: () => void;
+};
+
+export function SidebarNav({ collapsed = false, onNavigate, onToggleCollapse }: SidebarNavProps) {
+  const pathname = usePathname();
+  const { address } = useAccount();
+  const isAdmin = Boolean(address?.toLowerCase() === ADMIN_ADDRESS.toLowerCase());
+  const [groupOpen, setGroupOpen] = React.useState<Record<string, boolean>>({});
+
+  const linkClass = (active: boolean) =>
+    cn(
+      "flex items-center rounded-xl text-sm font-medium transition-all",
+      collapsed ? "justify-center px-2 py-2.5" : "gap-3 px-3 py-2.5",
+      active
+        ? "bg-primary text-primary-foreground shadow-lg shadow-primary/25"
+        : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+    );
+
+  return (
+    <>
+      <nav
+        className={cn(
+          "flex flex-1 flex-col gap-0.5 overflow-y-auto py-2",
+          collapsed ? "px-2" : "px-3"
+        )}
+      >
+        {sidebarNav.map((item) => {
+          if (item.children) {
+            const childActive = item.children.some((c) => pathname === c.href);
+            const isOpen = groupOpen[item.label] ?? childActive;
+            return (
+              <div key={item.label}>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setGroupOpen((prev) => ({ ...prev, [item.label]: !isOpen }))
+                  }
+                  title={collapsed ? item.label : undefined}
+                  className={cn(
+                    "flex w-full items-center rounded-xl text-sm font-medium transition-all",
+                    collapsed ? "justify-center px-2 py-2.5" : "gap-3 px-3 py-2.5",
+                    "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                  )}
+                >
+                  <item.icon className="h-[18px] w-[18px] shrink-0" />
+                  {!collapsed ? <span className="flex-1 text-left">{item.label}</span> : null}
+                  {!collapsed ? (
+                    <ChevronDown
+                      className={cn(
+                        "h-4 w-4 shrink-0 opacity-70 transition-transform",
+                        isOpen && "rotate-180"
+                      )}
+                    />
+                  ) : null}
+                </button>
+                {isOpen && !collapsed ? (
+                  <div className="ml-9 mt-0.5 space-y-0.5 border-l border-border pl-3">
+                    {item.children.map((child) => (
+                      <Link
+                        key={child.href}
+                        href={child.href}
+                        onClick={onNavigate}
+                        className={cn(
+                          "block rounded-lg px-3 py-2 text-sm transition-colors",
+                          pathname === child.href
+                            ? "font-medium text-primary"
+                            : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        {child.label}
+                      </Link>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            );
+          }
+
+          const active = isActive(pathname, item.href);
+          return (
+            <Link
+              key={item.href}
+              href={item.href!}
+              onClick={onNavigate}
+              title={collapsed ? item.label : undefined}
+              className={linkClass(active)}
+            >
+              <item.icon className="h-[18px] w-[18px] shrink-0" />
+              {!collapsed ? item.label : null}
+            </Link>
+          );
+        })}
+
+        {isAdmin ? (
+          <Link
+            href={adminNav.href}
+            onClick={onNavigate}
+            title={collapsed ? adminNav.label : undefined}
+            className={linkClass(pathname === adminNav.href)}
+          >
+            <adminNav.icon className="h-[18px] w-[18px] shrink-0" />
+            {!collapsed ? adminNav.label : null}
+          </Link>
+        ) : null}
+      </nav>
+
+      {!collapsed ? <OpnPriceWidget /> : null}
+
+      {onToggleCollapse ? (
+        <div className={cn("hidden border-t border-border lg:block", collapsed ? "p-2" : "p-3")}>
+          <button
+            type="button"
+            onClick={onToggleCollapse}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            className={cn(
+              "flex items-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground",
+              collapsed ? "h-10 w-full justify-center" : "h-10 w-full justify-center gap-2 px-3"
+            )}
+          >
+            {collapsed ? (
+              <ChevronRight className="h-4 w-4" />
+            ) : (
+              <>
+                <ChevronLeft className="h-4 w-4" />
+                <span className="text-xs font-medium">Collapse</span>
+              </>
+            )}
+          </button>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+export function SidebarBrand({
+  collapsed = false,
+  onClose
+}: {
+  collapsed?: boolean;
+  onClose?: () => void;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-3 py-5",
+        collapsed ? "justify-center px-2" : "justify-between px-5"
+      )}
+    >
+      <Link
+        href="/"
+        className={cn("flex items-center", collapsed ? "justify-center" : "gap-3")}
+        onClick={onClose}
+        title={collapsed ? "EasyFlow" : undefined}
+      >
+        <Logo size={collapsed ? 36 : 40} priority />
+        {!collapsed ? (
+          <span className="text-base font-semibold tracking-tight">EasyFlow</span>
+        ) : null}
+      </Link>
+      {onClose ? (
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded-lg p-2 text-muted-foreground hover:bg-secondary lg:hidden"
+          aria-label="Close menu"
+        >
+          <X className="h-5 w-5" />
+        </button>
+      ) : null}
+    </div>
+  );
+}
+

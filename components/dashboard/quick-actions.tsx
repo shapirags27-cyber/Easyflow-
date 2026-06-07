@@ -2,10 +2,10 @@ import Link from "next/link";
 import { ArrowLeftRight, Coins, Droplets, Send, Wallet, Sparkles } from "lucide-react";
 
 const actions = [
-  { href: "/swap", label: "Swap", icon: ArrowLeftRight, bg: "bg-blue-500" },
+  { href: "/swap", label: "Swap", icon: ArrowLeftRight, bg: "bg-primary" },
   { href: "/stake", label: "Stake", icon: Coins, bg: "bg-emerald-500" },
-  { href: "/multisend", label: "Multi-Send", icon: Send, bg: "bg-violet-500" },
-  { href: "/pools", label: "Add Liquidity", icon: Droplets, bg: "bg-cyan-500" },
+  { href: "/multisend", label: "Multi-Send", icon: Send, bg: "bg-accent" },
+  { href: "/pools", label: "Add Liquidity", icon: Droplets, bg: "bg-sky-500" },
   { href: "/borrow", label: "Borrow", icon: Wallet, bg: "bg-orange-500" },
   { href: "/points", label: "Claim Rewards", icon: Sparkles, bg: "bg-lime-500" }
 ];

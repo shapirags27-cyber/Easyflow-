@@ -22,14 +22,7 @@ export type NavItem = {
 
 export const sidebarNav: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  {
-    label: "Swap",
-    icon: ArrowLeftRight,
-    children: [
-      { href: "/swap", label: "Swap Tokens" },
-      { href: "/pools", label: "Add Liquidity" }
-    ]
-  },
+  { href: "/swap", label: "Swap", icon: ArrowLeftRight },
   { href: "/stake", label: "Stake", icon: Coins },
   { href: "/multisend", label: "MultiSend", icon: Send },
   { href: "/pools", label: "Pools", icon: Droplets },

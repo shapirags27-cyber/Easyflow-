@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Logo } from "@/components/layout/logo";
 import { ArrowRight, Sparkles } from "lucide-react";
 import { LandingStats } from "@/components/marketing/landing-stats";
 
@@ -38,15 +37,6 @@ export default function HomePage() {
             <Button size="lg" variant="outline" asChild>
               <Link href="/docs">View Docs</Link>
             </Button>
-          </div>
-        </div>
-
-        <div className="mx-auto mt-16 flex justify-center">
-          <div className="relative">
-            <div className="absolute inset-0 rounded-full bg-primary/30 blur-3xl" />
-            <div className="relative flex h-40 w-40 items-center justify-center md:h-52 md:w-52">
-              <Logo size={208} priority className="h-40 w-40 md:h-52 md:w-52" />
-            </div>
           </div>
         </div>
       </section>

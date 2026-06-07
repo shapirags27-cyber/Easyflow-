@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useSwap } from "@/lib/hooks/useSwap";
+import { TOKENS } from "@/lib/tokens";
 
 export default function SwapPage() {
   const { isConnected } = useAccount();
@@ -49,8 +50,11 @@ export default function SwapPage() {
                   value={tokenIn.symbol}
                   onChange={(e) => setTokenInOut(e.target.value, tokenOut.symbol)}
                 >
-                  <option value="A">Token A</option>
-                  <option value="B">Token B</option>
+                  {TOKENS.map((t) => (
+                    <option key={t.symbol} value={t.symbol}>
+                      {t.symbol}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -78,8 +82,11 @@ export default function SwapPage() {
                   value={tokenOut.symbol}
                   onChange={(e) => setTokenInOut(tokenIn.symbol, e.target.value)}
                 >
-                  <option value="A">Token A</option>
-                  <option value="B">Token B</option>
+                  {TOKENS.map((t) => (
+                    <option key={t.symbol} value={t.symbol}>
+                      {t.symbol}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>

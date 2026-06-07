@@ -2,8 +2,8 @@
 
 export function PortfolioChart() {
   const segments = [
-    { label: "Staked", pct: 60, color: "hsl(262 83% 58%)" },
-    { label: "Liquidity", pct: 25, color: "hsl(199 89% 48%)" },
+    { label: "Staked", pct: 60, color: "hsl(216 100% 50%)" },
+    { label: "Liquidity", pct: 25, color: "hsl(188 100% 50%)" },
     { label: "Available", pct: 15, color: "hsl(240 18% 30%)" }
   ];
 

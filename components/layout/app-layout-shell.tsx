@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 
 export function AppLayoutShell({ children }: { children: React.ReactNode }) {
   const [menuOpen, setMenuOpen] = React.useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false);
 
   React.useEffect(() => {
     document.body.style.overflow = menuOpen ? "hidden" : "";
@@ -16,12 +17,30 @@ export function AppLayoutShell({ children }: { children: React.ReactNode }) {
     };
   }, [menuOpen]);
 
+  React.useEffect(() => {
+    const stored = localStorage.getItem("easyflow-sidebar-collapsed");
+    if (stored === "true") setSidebarCollapsed(true);
+  }, []);
+
+  const toggleSidebar = () => {
+    setSidebarCollapsed((collapsed) => {
+      const next = !collapsed;
+      localStorage.setItem("easyflow-sidebar-collapsed", String(next));
+      return next;
+    });
+  };
+
   return (
     <div className="flex min-h-dvh w-full bg-background">
       {/* Desktop sidebar — in document flow */}
-      <aside className="hidden h-dvh w-[260px] shrink-0 flex-col border-r border-border bg-card lg:flex">
-        <SidebarBrand />
-        <SidebarNav />
+      <aside
+        className={cn(
+          "hidden h-dvh shrink-0 flex-col border-r border-border bg-card transition-[width] duration-200 ease-out lg:flex",
+          sidebarCollapsed ? "w-[72px]" : "w-[260px]"
+        )}
+      >
+        <SidebarBrand collapsed={sidebarCollapsed} />
+        <SidebarNav collapsed={sidebarCollapsed} onToggleCollapse={toggleSidebar} />
       </aside>
 
       {/* Mobile drawer backdrop */}

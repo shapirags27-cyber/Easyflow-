@@ -1,5 +1,10 @@
-import { AppLayoutShell } from "@/components/layout/app-layout-shell";
+import { MarketingHeader } from "@/components/layout/marketing-header";
 
 export default function MarketingLayout({ children }: { children: React.ReactNode }) {
-  return <AppLayoutShell>{children}</AppLayoutShell>;
+  return (
+    <div className="min-h-dvh bg-background">
+      <MarketingHeader />
+      <main>{children}</main>
+    </div>
+  );
 }

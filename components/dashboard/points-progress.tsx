@@ -31,8 +31,8 @@ export function PointsProgress({ points, level = "Gold" }: { points: number; lev
             />
             <defs>
               <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stopColor="hsl(262 83% 58%)" />
-                <stop offset="100%" stopColor="hsl(199 89% 48%)" />
+                <stop offset="0%" stopColor="hsl(216 100% 50%)" />
+                <stop offset="100%" stopColor="hsl(188 100% 50%)" />
               </linearGradient>
             </defs>
           </svg>

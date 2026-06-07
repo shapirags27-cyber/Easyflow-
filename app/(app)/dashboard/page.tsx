@@ -10,6 +10,7 @@ import { RecentTxs } from "@/components/dashboard/recent-txs";
 import { PointsProgress } from "@/components/dashboard/points-progress";
 import { usePoints } from "@/lib/hooks/usePoints";
 import { useStaking } from "@/lib/hooks/useStaking";
+import { formatBalanceAmount } from "@/lib/format-balance";
 
 export default function DashboardPage() {
   const { address, isConnected } = useAccount();
@@ -25,8 +26,8 @@ export default function DashboardPage() {
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <StatCard
             title="OPN Balance"
-            value={bal ? Number(bal.formatted).toFixed(2) : "—"}
-            sub={bal ? `$${(Number(bal.formatted) * 0.8421).toFixed(2)}` : "Connect wallet"}
+            value={formatBalanceAmount(bal) ?? "—"}
+            sub={bal ? `$${(Number(formatBalanceAmount(bal)) * 0.8421).toFixed(2)}` : "Connect wallet"}
             icon={Wallet}
           />
           <StatCard

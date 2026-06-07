@@ -8,16 +8,21 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { usePools } from "@/lib/hooks/usePools";
+import { getUniqueTokens } from "@/lib/tokens";
+
+const poolTokens = getUniqueTokens();
 
 export default function PoolsPage() {
   const { isConnected } = useAccount();
-  const [amountA, setAmountA] = React.useState("100");
-  const [amountB, setAmountB] = React.useState("100");
-  const { addLiquidity, isPending } = usePools();
+  const [token0Sym, setToken0Sym] = React.useState("OPN");
+  const [token1Sym, setToken1Sym] = React.useState("tUSDT");
+  const [amount0, setAmount0] = React.useState("100");
+  const [amount1, setAmount1] = React.useState("100");
+  const { decimals0, decimals1, addLiquidity, isPending, canAdd } = usePools(token0Sym, token1Sym);
 
   const submit = () => {
-    const a = parseUnits(amountA || "0", 18);
-    const b = parseUnits(amountB || "0", 18);
+    const a = parseUnits(amount0 || "0", decimals0);
+    const b = parseUnits(amount1 || "0", decimals1);
     addLiquidity(a, b);
   };
 
@@ -27,17 +32,45 @@ export default function PoolsPage() {
       <div className="mx-auto grid max-w-4xl gap-6 p-4 md:p-8 lg:grid-cols-2">
         <div className="glass rounded-2xl p-6">
           <h3 className="text-lg font-semibold">Add Liquidity</h3>
-          <p className="text-sm text-muted-foreground">Token A / Token B pair</p>
+          <p className="text-sm text-muted-foreground">
+            {token0Sym} / {token1Sym} pair
+          </p>
           <div className="mt-6 grid gap-4">
             <div>
-              <Label>Token A amount</Label>
-              <Input className="mt-2" value={amountA} onChange={(e) => setAmountA(e.target.value)} />
+              <Label>{token0Sym} amount</Label>
+              <div className="mt-2 flex gap-2">
+                <Input value={amount0} onChange={(e) => setAmount0(e.target.value)} />
+                <select
+                  className="rounded-lg border bg-card px-3 text-sm"
+                  value={token0Sym}
+                  onChange={(e) => setToken0Sym(e.target.value)}
+                >
+                  {poolTokens.map((t) => (
+                    <option key={t.symbol} value={t.symbol}>
+                      {t.symbol}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
             <div>
-              <Label>Token B amount</Label>
-              <Input className="mt-2" value={amountB} onChange={(e) => setAmountB(e.target.value)} />
+              <Label>{token1Sym} amount</Label>
+              <div className="mt-2 flex gap-2">
+                <Input value={amount1} onChange={(e) => setAmount1(e.target.value)} />
+                <select
+                  className="rounded-lg border bg-card px-3 text-sm"
+                  value={token1Sym}
+                  onChange={(e) => setToken1Sym(e.target.value)}
+                >
+                  {poolTokens.map((t) => (
+                    <option key={t.symbol} value={t.symbol}>
+                      {t.symbol}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
-            <Button size="lg" disabled={!isConnected || isPending} onClick={submit}>
+            <Button size="lg" disabled={!isConnected || isPending || !canAdd} onClick={submit}>
               {isPending ? "Adding…" : "Add Liquidity"}
             </Button>
             <p className="text-xs text-muted-foreground">+30 points when liquidity is added</p>
