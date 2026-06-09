@@ -33,7 +33,7 @@ export function WalletConnectButton() {
 
   const { address, isConnected } = useAccount();
   const connectors = useConnectors();
-  const { mutateAsync: connectAsync, isPending: isConnecting, error: connectError } = useConnect();
+  const { connect: connectAsync, isPending: isConnecting, error: connectError } = useConnect();
   const { disconnect, isPending: isDisconnecting } = useDisconnect();
   const { switchChain, isPending: isSwitching } = useSwitchChain();
   const chainId = useChainId();
