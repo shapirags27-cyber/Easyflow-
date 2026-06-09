@@ -158,3 +158,23 @@ model AdminAuditLog {
   payload   Json?
   createdAt DateTime @default(now())
 }
+
+model TransactionLog {
+  id        String   @id @default(cuid())
+  wallet    String
+  type      String
+  amount    String
+  positive  Boolean  @default(true)
+  txHash    String?
+  createdAt DateTime @default(now())
+
+  @@index([wallet])
+}
+
+model PlatformStat {
+  id                String @id @default("global")
+  tvl               String @default("$0")
+  totalStaked       String @default("0 OPN")
+  totalSwapped      String @default("0 OPN")
+  pointsDistributed String @default("0")
+}
