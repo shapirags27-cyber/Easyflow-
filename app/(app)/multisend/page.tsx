@@ -3,12 +3,13 @@
 import * as React from "react";
 import { parseEther } from "viem";
 import { useAccount } from "wagmi";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, Upload } from "lucide-react";
 import { AppShellBar } from "@/components/layout/app-shell-bar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useMultiSend } from "@/lib/hooks/useMultiSend";
+import { parseMultiSendCsv } from "@/lib/multisend-csv";
 
 type Row = { to: string; value: string; bps?: string };
 
@@ -23,6 +24,9 @@ export default function MultiSendPage() {
   ]);
 
   const { sendFixed, sendPercent, isPending } = useMultiSend();
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [importMessage, setImportMessage] = React.useState<string | null>(null);
+  const [importError, setImportError] = React.useState<string | null>(null);
 
   const totalWei = React.useMemo(() => {
     try {
@@ -47,6 +51,42 @@ export default function MultiSendPage() {
     if (splitType === "equal" && mode === "fixed") applyEqualSplit();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [splitType, total, rows.length]);
+
+  const handleFileUpload = async (file: File) => {
+    setImportMessage(null);
+    setImportError(null);
+
+    const name = file.name.toLowerCase();
+    if (!name.endsWith(".csv") && !name.endsWith(".txt") && !name.endsWith(".tsv")) {
+      setImportError("Please upload a .csv or .txt file (export from Excel or Google Sheets).");
+      return;
+    }
+
+    const text = await file.text();
+    const { rows: parsed, errors, hasAmounts, hasBps } = parseMultiSendCsv(text);
+
+    if (parsed.length === 0) {
+      setImportError(errors[0] ?? "No valid addresses found in file.");
+      return;
+    }
+
+    setRows(parsed);
+
+    if (hasBps) {
+      setMode("percent");
+      setSplitType("custom");
+    } else if (hasAmounts) {
+      setMode("fixed");
+      setSplitType("custom");
+    } else {
+      setSplitType("equal");
+    }
+
+    const summary = `Imported ${parsed.length} wallet${parsed.length === 1 ? "" : "s"}.`;
+    const warn = errors.length > 0 ? ` Skipped ${errors.length} invalid row(s).` : "";
+    setImportMessage(summary + warn);
+    if (errors.length > 0) setImportError(errors.slice(0, 3).join(" "));
+  };
 
   const canSubmit =
     isConnected &&
@@ -114,7 +154,7 @@ export default function MultiSendPage() {
             ))}
           </div>
 
-          <div className="mt-4 flex gap-2">
+          <div className="mt-4 flex flex-wrap gap-2">
             <Button type="button" variant="secondary" size="sm" onClick={() => setRows((p) => [...p, { to: "", value: "0" }])}>
               <Plus className="mr-1 h-4 w-4" /> Add
             </Button>
@@ -126,7 +166,37 @@ export default function MultiSendPage() {
             >
               <Trash2 className="mr-1 h-4 w-4" /> Remove
             </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Upload className="mr-1 h-4 w-4" /> Upload CSV
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv,.txt,.tsv,text/csv,text/plain"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) void handleFileUpload(file);
+                e.target.value = "";
+              }}
+            />
           </div>
+
+          <p className="mt-2 text-xs text-muted-foreground">
+            CSV format: one wallet per line — <code className="text-foreground">0xAddress</code> or{" "}
+            <code className="text-foreground">0xAddress,0.5</code>. Export from Excel or Google Sheets as CSV.
+          </p>
+          {importMessage ? (
+            <p className="mt-1 text-xs text-emerald-400">{importMessage}</p>
+          ) : null}
+          {importError ? (
+            <p className="mt-1 text-xs text-destructive">{importError}</p>
+          ) : null}
 
           <Button
             className="mt-6 w-full glow-primary"

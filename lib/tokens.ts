@@ -29,6 +29,25 @@ export const TOKENS: Token[] = [
   }
 ];
 
+/** Legacy mock tokens from initial IOPN deploy — show friendly labels in UI. */
+const LEGACY_TOKEN_LABELS: Record<string, string> = {
+  "0x2e9e88e3816324d2697fd8b523e0062b55d779d0": "OPN",
+  "0x1a07f1061a63c7b3d6d320b70f93003946720182": "OPN"
+};
+
+export function getTokenByAddress(address: string): Token | undefined {
+  return TOKENS.find((t) => t.address.toLowerCase() === address.toLowerCase());
+}
+
+export function getTokenLabel(address: string, onChainSymbol?: string): string {
+  const known = getTokenByAddress(address);
+  if (known) return known.symbol;
+  const legacy = LEGACY_TOKEN_LABELS[address.toLowerCase()];
+  if (legacy) return legacy;
+  if (onChainSymbol && onChainSymbol.length > 1) return onChainSymbol;
+  return onChainSymbol === "A" || onChainSymbol === "B" ? "OPN" : (onChainSymbol ?? "TOKEN");
+}
+
 export function getToken(symbol: string): Token | undefined {
   return TOKENS.find((t) => t.symbol === symbol);
 }

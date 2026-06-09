@@ -9,6 +9,11 @@ import { useStaking } from "@/lib/hooks/useStaking";
 import { PointsProgress } from "@/components/dashboard/points-progress";
 import { formatBalanceAmount } from "@/lib/format-balance";
 
+function shortAddr(addr?: string) {
+  if (!addr) return "";
+  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
+}
+
 export default function AccountPage() {
   const { address, isConnected } = useAccount();
   const { data: bal } = useBalance({ address });
@@ -24,7 +29,7 @@ export default function AccountPage() {
           <StatCard
             title="Wallet"
             value={bal ? `${formatBalanceAmount(bal)} ${bal.symbol}` : "—"}
-            sub={address ?? "Not connected"}
+            sub={address ? shortAddr(address) : "Not connected"}
             icon={Wallet}
           />
           <StatCard title="Points" value={isConnected ? points : "—"} sub="Total XP" icon={Award} />

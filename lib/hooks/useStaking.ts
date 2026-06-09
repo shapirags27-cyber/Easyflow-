@@ -9,18 +9,20 @@ import {
   useWaitForTransactionReceipt
 } from "wagmi";
 import { contracts } from "@/lib/contracts";
+import { getTokenLabel } from "@/lib/tokens";
 import { erc20Abi, stakingAbi } from "@/lib/abis";
 
-export function useStakedBalance() {
-  const { address } = useAccount();
+function useStakingToken() {
   const { data: tokenAddr } = useReadContract({
     address: contracts.staking,
     abi: stakingAbi,
     functionName: "stakingToken",
     query: { enabled: Boolean(contracts.staking) }
   });
+
   const stakingToken = (tokenAddr ?? "0x0000000000000000000000000000000000000000") as Address;
-  const { data: symbol } = useReadContract({
+
+  const { data: onChainSymbol } = useReadContract({
     address: stakingToken,
     abi: erc20Abi,
     functionName: "symbol",
@@ -32,8 +34,19 @@ export function useStakedBalance() {
     functionName: "decimals",
     query: { enabled: stakingToken !== "0x0000000000000000000000000000000000000000" }
   });
-  const tokenSymbol = symbol ?? "TOKEN";
+
   const tokenDecimals = decimals ? Number(decimals) : 18;
+  const tokenSymbol =
+    stakingToken !== "0x0000000000000000000000000000000000000000"
+      ? getTokenLabel(stakingToken, onChainSymbol as string | undefined)
+      : "OPN";
+
+  return { stakingToken, tokenSymbol, tokenDecimals };
+}
+
+export function useStakedBalance() {
+  const { address } = useAccount();
+  const { tokenSymbol, tokenDecimals } = useStakingToken();
 
   const { data } = useReadContract({
     address: contracts.staking,
@@ -42,37 +55,15 @@ export function useStakedBalance() {
     args: address ? [address] : undefined,
     query: { enabled: Boolean(address && contracts.staking) }
   });
-  const stakedFormatted = data ? `${formatUnits(data, tokenDecimals)} ${tokenSymbol}` : `0 ${tokenSymbol}`;
-  return { stakedFormatted, tokenSymbol, tokenDecimals };
+
+  const stakedRaw = data ?? 0n;
+  const stakedFormatted = `${formatUnits(stakedRaw, tokenDecimals)} ${tokenSymbol}`;
+  return { stakedFormatted, stakedRaw, tokenSymbol, tokenDecimals };
 }
 
 export function useStaking() {
   const { address } = useAccount();
-
-  const { data: tokenAddr } = useReadContract({
-    address: contracts.staking,
-    abi: stakingAbi,
-    functionName: "stakingToken",
-    query: { enabled: Boolean(contracts.staking) }
-  });
-
-  const stakingToken = (tokenAddr ?? "0x0000000000000000000000000000000000000000") as Address;
-
-  const { data: symbol } = useReadContract({
-    address: stakingToken,
-    abi: erc20Abi,
-    functionName: "symbol",
-    query: { enabled: stakingToken !== "0x0000000000000000000000000000000000000000" }
-  });
-  const { data: decimals } = useReadContract({
-    address: stakingToken,
-    abi: erc20Abi,
-    functionName: "decimals",
-    query: { enabled: stakingToken !== "0x0000000000000000000000000000000000000000" }
-  });
-
-  const tokenSymbol = symbol ?? "TOKEN";
-  const tokenDecimals = decimals ? Number(decimals) : 18;
+  const { stakingToken, tokenSymbol, tokenDecimals } = useStakingToken();
 
   const { data: staked } = useReadContract({
     address: contracts.staking,
@@ -82,9 +73,22 @@ export function useStaking() {
     query: { enabled: Boolean(address && contracts.staking) }
   });
 
-  const stakedFormatted = staked
-    ? `${formatUnits(staked, tokenDecimals)} ${tokenSymbol}`
-    : `0 ${tokenSymbol}`;
+  const stakedRaw = staked ?? 0n;
+  const stakedAmount = formatUnits(stakedRaw, tokenDecimals);
+  const stakedFormatted = `${stakedAmount} ${tokenSymbol}`;
+
+  const { data: walletBalance } = useReadContract({
+    address: stakingToken,
+    abi: erc20Abi,
+    functionName: "balanceOf",
+    args: address ? [address] : undefined,
+    query: {
+      enabled:
+        Boolean(address) && stakingToken !== "0x0000000000000000000000000000000000000000"
+    }
+  });
+  const walletBalanceRaw = walletBalance ?? 0n;
+  const walletBalanceFormatted = `${formatUnits(walletBalanceRaw, tokenDecimals)} ${tokenSymbol}`;
 
   const { data: totalStaked } = useReadContract({
     address: contracts.staking,
@@ -150,11 +154,14 @@ export function useStaking() {
   return {
     tokenSymbol,
     tokenDecimals,
+    stakedRaw,
+    stakedAmount,
     stakedFormatted,
+    walletBalanceRaw,
+    walletBalanceFormatted,
     totalStakedFormatted,
     stake,
     unstake,
     isPending
   };
 }
-
