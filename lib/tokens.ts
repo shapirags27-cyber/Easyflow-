@@ -26,6 +26,16 @@ export const TOKENS: Token[] = [
     symbol: "OPN",
     name: "OPN",
     address: "0xBc022C9dEb5AF250A526321d16Ef52E39b4DBD84"
+  },
+  {
+    symbol: "OPN",
+    name: "Legacy Pool Token A",
+    address: "0x2E9e88e3816324d2697fD8B523e0062B55d779d0"
+  },
+  {
+    symbol: "OPN-B",
+    name: "Legacy Pool Token B",
+    address: "0x1A07f1061a63C7b3D6d320b70f93003946720182"
   }
 ];
 

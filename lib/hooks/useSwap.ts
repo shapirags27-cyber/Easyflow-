@@ -4,46 +4,63 @@ import * as React from "react";
 import { formatUnits, type Address } from "viem";
 import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { contracts } from "@/lib/contracts";
-import { getTokenAddress } from "@/lib/tokens";
+import { getTokenByAddress } from "@/lib/tokens";
 import { ammRouterAbi, erc20Abi } from "@/lib/abis";
 
 type TokenRef = { symbol: string; address: Address; decimals: number };
+
+const WOPN = "0xBc022C9dEb5AF250A526321d16Ef52E39b4DBD84" as Address;
+const TUSDT = "0x3e01b4d892E0D0A219eF8BBe7e260a6bc8d9B31b" as Address;
 
 function swapDeadline() {
   return BigInt(Math.floor(Date.now() / 1000) + 60 * 20);
 }
 
+function useTokenMeta(address: Address) {
+  const known = getTokenByAddress(address);
+
+  const { data: onChainSymbol } = useReadContract({
+    address,
+    abi: erc20Abi,
+    functionName: "symbol",
+    query: { enabled: address !== "0x0000000000000000000000000000000000000000" }
+  });
+  const { data: decimals } = useReadContract({
+    address,
+    abi: erc20Abi,
+    functionName: "decimals",
+    query: { enabled: address !== "0x0000000000000000000000000000000000000000" }
+  });
+
+  const symbol =
+    known?.symbol ??
+    (onChainSymbol as string | undefined) ??
+    `${address.slice(0, 6)}…${address.slice(-4)}`;
+
+  return {
+    symbol,
+    decimals: decimals ? Number(decimals) : 18
+  };
+}
+
 export function useSwap() {
   const { address } = useAccount();
-  const [tokenInSym, setTokenInSym] = React.useState("WOPN");
-  const [tokenOutSym, setTokenOutSym] = React.useState("tUSDT");
+  const [tokenInAddress, setTokenInAddress] = React.useState<Address>(WOPN);
+  const [tokenOutAddress, setTokenOutAddress] = React.useState<Address>(TUSDT);
   const [quoteError, setQuoteError] = React.useState<string | null>(null);
 
-  const tokenInAddr = getTokenAddress(tokenInSym);
-  const tokenOutAddr = getTokenAddress(tokenOutSym);
-
-  const { data: inDecimals } = useReadContract({
-    address: tokenInAddr,
-    abi: erc20Abi,
-    functionName: "decimals",
-    query: { enabled: tokenInAddr !== "0x0000000000000000000000000000000000000000" }
-  });
-  const { data: outDecimals } = useReadContract({
-    address: tokenOutAddr,
-    abi: erc20Abi,
-    functionName: "decimals",
-    query: { enabled: tokenOutAddr !== "0x0000000000000000000000000000000000000000" }
-  });
+  const inMeta = useTokenMeta(tokenInAddress);
+  const outMeta = useTokenMeta(tokenOutAddress);
 
   const tokenIn: TokenRef = {
-    symbol: tokenInSym,
-    address: tokenInAddr,
-    decimals: inDecimals ? Number(inDecimals) : 18
+    symbol: inMeta.symbol,
+    address: tokenInAddress,
+    decimals: inMeta.decimals
   };
   const tokenOut: TokenRef = {
-    symbol: tokenOutSym,
-    address: tokenOutAddr,
-    decimals: outDecimals ? Number(outDecimals) : 18
+    symbol: outMeta.symbol,
+    address: tokenOutAddress,
+    decimals: outMeta.decimals
   };
 
   const [quotedOut, setQuotedOut] = React.useState<bigint>(0n);
@@ -135,15 +152,20 @@ export function useSwap() {
   const canSwap =
     tokenIn.address.toLowerCase() !== tokenOut.address.toLowerCase() && quotedOut > 0n;
 
-  const setTokenInOut = (a: string, b: string) => {
-    setTokenInSym(a);
-    setTokenOutSym(b);
+  const setTokenIn = (addr: Address) => setTokenInAddress(addr);
+  const setTokenOut = (addr: Address) => setTokenOutAddress(addr);
+
+  const swapTokenPositions = () => {
+    setTokenInAddress(tokenOutAddress);
+    setTokenOutAddress(tokenInAddress);
   };
 
   return {
     tokenIn,
     tokenOut,
-    setTokenInOut,
+    setTokenIn,
+    setTokenOut,
+    swapTokenPositions,
     quote: {
       formattedOut,
       priceText: quoteError
