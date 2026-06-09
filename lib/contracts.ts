@@ -9,13 +9,21 @@ export type ContractAddresses = {
   ammRouter: Address;
 };
 
-const AMM_ROUTER =
-  (process.env.NEXT_PUBLIC_AMM_ROUTER_ADDRESS as Address | undefined) ??
-  "0xB489bce5c9c9364da2D1D1Bc5CE4274F63141885";
+function publicAddress(envKey: string, fallback: Address): Address {
+  const value = process.env[envKey]?.trim();
+  if (value && /^0x[a-fA-F0-9]{40}$/.test(value)) return value as Address;
+  return fallback;
+}
 
-const AMM_FACTORY =
-  (process.env.NEXT_PUBLIC_AMM_FACTORY_ADDRESS as Address | undefined) ??
-  "0x8860242B65611dfd077aEe26C3C7920813dF9208";
+const AMM_ROUTER = publicAddress(
+  "NEXT_PUBLIC_AMM_ROUTER_ADDRESS",
+  "0xB489bce5c9c9364da2D1D1Bc5CE4274F63141885"
+);
+
+const AMM_FACTORY = publicAddress(
+  "NEXT_PUBLIC_AMM_FACTORY_ADDRESS",
+  "0x8860242B65611dfd077aEe26C3C7920813dF9208"
+);
 
 export const STAKING_TOKEN_SYMBOL =
   process.env.NEXT_PUBLIC_STAKING_TOKEN_SYMBOL ?? "OPN";

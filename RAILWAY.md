@@ -20,6 +20,8 @@ On the **web service** → **Variables** → add:
 | `ADMIN_ADDRESS` | `0xe7AEC4044e0E75b71394b0eC1Bc12365Aa3603D9` |
 | `NEXT_PUBLIC_IOPN_RPC` | `https://testnet-rpc.iopn.tech` |
 | `NEXT_PUBLIC_CHAIN_ID` | `984` |
+| `NEXT_PUBLIC_AMM_ROUTER_ADDRESS` | `0xB489bce5c9c9364da2D1D1Bc5CE4274F63141885` |
+| `NEXT_PUBLIC_AMM_FACTORY_ADDRESS` | `0x8860242B65611dfd077aEe26C3C7920813dF9208` |
 
 Optional (admin fee backend auto-submit):
 - `ADMIN_PRIVATE_KEY` — only if server should submit fee txs

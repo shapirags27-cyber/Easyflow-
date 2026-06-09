@@ -5,13 +5,12 @@ function shortAddr(addr: string) {
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
 }
 
-export function searchSwapTokens(query: string): Token[] {
+export function searchSwapTokens(query: string, catalog: Token[] = getUniqueTokens()): Token[] {
   const q = query.trim().toLowerCase();
-  const unique = getUniqueTokens();
 
-  if (!q) return unique;
+  if (!q) return catalog;
 
-  const matched = TOKENS.filter(
+  const matched = [...catalog, ...TOKENS].filter(
     (t) =>
       t.symbol.toLowerCase().includes(q) ||
       t.name.toLowerCase().includes(q) ||

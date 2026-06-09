@@ -5,6 +5,7 @@ import { formatUnits, type Address } from "viem";
 import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { contracts } from "@/lib/contracts";
 import { getTokenByAddress } from "@/lib/tokens";
+import { fetchSwapQuote } from "@/lib/swap-quote";
 import { ammRouterAbi, erc20Abi } from "@/lib/abis";
 
 type TokenRef = { symbol: string; address: Address; decimals: number };
@@ -47,7 +48,10 @@ export function useSwap() {
   const { address } = useAccount();
   const [tokenInAddress, setTokenInAddress] = React.useState<Address>(WOPN);
   const [tokenOutAddress, setTokenOutAddress] = React.useState<Address>(TUSDT);
+  const [swapPath, setSwapPath] = React.useState<Address[]>([WOPN, TUSDT]);
+  const [quotedOut, setQuotedOut] = React.useState<bigint>(0n);
   const [quoteError, setQuoteError] = React.useState<string | null>(null);
+  const [isQuoting, setIsQuoting] = React.useState(false);
 
   const inMeta = useTokenMeta(tokenInAddress);
   const outMeta = useTokenMeta(tokenOutAddress);
@@ -63,13 +67,6 @@ export function useSwap() {
     decimals: outMeta.decimals
   };
 
-  const [quotedOut, setQuotedOut] = React.useState<bigint>(0n);
-
-  const swapPath = React.useMemo(
-    () => [tokenIn.address, tokenOut.address] as Address[],
-    [tokenIn.address, tokenOut.address]
-  );
-
   const refreshQuote = React.useCallback(
     async (amountIn: bigint) => {
       if (
@@ -80,33 +77,59 @@ export function useSwap() {
         tokenIn.address.toLowerCase() === tokenOut.address.toLowerCase()
       ) {
         setQuotedOut(0n);
+        setSwapPath([tokenIn.address, tokenOut.address]);
         setQuoteError(null);
         return;
       }
 
-      const { createPublicClient, http } = await import("viem");
-      const { iopnTestnet } = await import("@/lib/chains");
-      const client = createPublicClient({
-        chain: iopnTestnet,
-        transport: http(iopnTestnet.rpcUrls.default.http[0])
-      });
-
+      setIsQuoting(true);
       try {
-        const amounts = await client.readContract({
-          address: contracts.ammRouter,
-          abi: ammRouterAbi,
-          functionName: "getAmountsOut",
-          args: [amountIn, swapPath]
+        const params = new URLSearchParams({
+          tokenIn: tokenIn.address,
+          tokenOut: tokenOut.address,
+          amountWei: amountIn.toString()
         });
-        const out = amounts[amounts.length - 1] ?? 0n;
-        setQuotedOut(out);
-        setQuoteError(out === 0n ? "No liquidity for this pair." : null);
+
+        const res = await fetch(`/api/quote?${params.toString()}`);
+        const data = (await res.json()) as {
+          amountOut?: string;
+          path?: Address[];
+          error?: string | null;
+        };
+
+        if (res.ok && data.amountOut && data.amountOut !== "0" && data.path?.length) {
+          setQuotedOut(BigInt(data.amountOut));
+          setSwapPath(data.path);
+          setQuoteError(null);
+          return;
+        }
+
+        const { createPublicClient, http } = await import("viem");
+        const { iopnTestnet } = await import("@/lib/chains");
+        const client = createPublicClient({
+          chain: iopnTestnet,
+          transport: http(iopnTestnet.rpcUrls.default.http[0])
+        });
+
+        const fallback = await fetchSwapQuote(client, tokenIn.address, tokenOut.address, amountIn);
+        if (fallback.ok) {
+          setQuotedOut(fallback.amountOut);
+          setSwapPath(fallback.path);
+          setQuoteError(null);
+        } else {
+          setQuotedOut(0n);
+          setSwapPath([tokenIn.address, tokenOut.address]);
+          setQuoteError(data.error ?? fallback.reason);
+        }
       } catch {
         setQuotedOut(0n);
-        setQuoteError("No quote — check pair liquidity or token selection.");
+        setSwapPath([tokenIn.address, tokenOut.address]);
+        setQuoteError("Could not fetch quote — check RPC connection.");
+      } finally {
+        setIsQuoting(false);
       }
     },
-    [swapPath, tokenIn.address, tokenOut.address]
+    [tokenIn.address, tokenOut.address]
   );
 
   const { data: allowance } = useReadContract({
@@ -158,6 +181,7 @@ export function useSwap() {
   const swapTokenPositions = () => {
     setTokenInAddress(tokenOutAddress);
     setTokenOutAddress(tokenInAddress);
+    setSwapPath([tokenOutAddress, tokenInAddress]);
   };
 
   return {
@@ -170,9 +194,11 @@ export function useSwap() {
       formattedOut,
       priceText: quoteError
         ? quoteError
-        : quotedOut === 0n
-          ? "Enter amount to see quote"
-          : `~ ${formattedOut} ${tokenOut.symbol} (est.)`,
+        : isQuoting
+          ? "Fetching quote…"
+          : quotedOut === 0n
+            ? "Enter amount to see quote"
+            : `~ ${formattedOut} ${tokenOut.symbol} (est.)`,
       canSwap,
       quoteError
     },
