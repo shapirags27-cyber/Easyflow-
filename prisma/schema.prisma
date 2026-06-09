@@ -150,3 +150,11 @@ enum NotificationType {
   REFERRAL
   SYSTEM
 }
+
+model AdminAuditLog {
+  id        String   @id @default(cuid())
+  admin     String
+  action    String
+  payload   Json?
+  createdAt DateTime @default(now())
+}
