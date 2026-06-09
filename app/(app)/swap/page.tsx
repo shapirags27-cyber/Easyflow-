@@ -9,7 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useSwap } from "@/lib/hooks/useSwap";
-import { TOKENS } from "@/lib/tokens";
+import { getUniqueTokens } from "@/lib/tokens";
+
+const SWAP_TOKENS = getUniqueTokens();
 
 export default function SwapPage() {
   const { isConnected } = useAccount();
@@ -50,7 +52,7 @@ export default function SwapPage() {
                   value={tokenIn.symbol}
                   onChange={(e) => setTokenInOut(e.target.value, tokenOut.symbol)}
                 >
-                  {TOKENS.map((t) => (
+                  {SWAP_TOKENS.map((t) => (
                     <option key={t.symbol} value={t.symbol}>
                       {t.symbol}
                     </option>
@@ -82,7 +84,7 @@ export default function SwapPage() {
                   value={tokenOut.symbol}
                   onChange={(e) => setTokenInOut(tokenIn.symbol, e.target.value)}
                 >
-                  {TOKENS.map((t) => (
+                  {SWAP_TOKENS.map((t) => (
                     <option key={t.symbol} value={t.symbol}>
                       {t.symbol}
                     </option>
@@ -105,7 +107,11 @@ export default function SwapPage() {
                 />
               </div>
             </div>
-            <div className="text-xs text-muted-foreground">{quote.priceText}</div>
+            <div
+              className={`text-xs ${quote.quoteError ? "text-destructive" : "text-muted-foreground"}`}
+            >
+              {quote.priceText}
+            </div>
 
             <Button
               size="lg"

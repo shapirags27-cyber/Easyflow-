@@ -1,14 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { formatUnits, type Address } from "viem";
+import { formatUnits, maxUint256, type Address } from "viem";
 import {
   useAccount,
   useReadContract,
   useWriteContract,
   useWaitForTransactionReceipt
 } from "wagmi";
-import { contracts } from "@/lib/contracts";
+import { contracts, STAKING_TOKEN_SYMBOL } from "@/lib/contracts";
 import { getTokenLabel } from "@/lib/tokens";
 import { erc20Abi, stakingAbi } from "@/lib/abis";
 
@@ -36,12 +36,13 @@ function useStakingToken() {
   });
 
   const tokenDecimals = decimals ? Number(decimals) : 18;
+  const onChainLabel = getTokenLabel(stakingToken, onChainSymbol as string | undefined);
   const tokenSymbol =
     stakingToken !== "0x0000000000000000000000000000000000000000"
-      ? getTokenLabel(stakingToken, onChainSymbol as string | undefined)
-      : "OPN";
+      ? STAKING_TOKEN_SYMBOL || onChainLabel
+      : STAKING_TOKEN_SYMBOL;
 
-  return { stakingToken, tokenSymbol, tokenDecimals };
+  return { stakingToken, tokenSymbol, onChainLabel, tokenDecimals };
 }
 
 export function useStakedBalance() {
@@ -63,9 +64,10 @@ export function useStakedBalance() {
 
 export function useStaking() {
   const { address } = useAccount();
-  const { stakingToken, tokenSymbol, tokenDecimals } = useStakingToken();
+  const { stakingToken, tokenSymbol, onChainLabel, tokenDecimals } = useStakingToken();
+  const [pendingStakeAmount, setPendingStakeAmount] = React.useState<bigint | null>(null);
 
-  const { data: staked } = useReadContract({
+  const { data: staked, refetch: refetchStaked } = useReadContract({
     address: contracts.staking,
     abi: stakingAbi,
     functionName: "stakedBalance",
@@ -77,7 +79,7 @@ export function useStaking() {
   const stakedAmount = formatUnits(stakedRaw, tokenDecimals);
   const stakedFormatted = `${stakedAmount} ${tokenSymbol}`;
 
-  const { data: walletBalance } = useReadContract({
+  const { data: walletBalance, refetch: refetchBalance } = useReadContract({
     address: stakingToken,
     abi: erc20Abi,
     functionName: "balanceOf",
@@ -100,7 +102,7 @@ export function useStaking() {
     ? `${formatUnits(totalStaked, tokenDecimals)} ${tokenSymbol}`
     : `0 ${tokenSymbol}`;
 
-  const { data: allowance } = useReadContract({
+  const { data: allowance, refetch: refetchAllowance } = useReadContract({
     address: stakingToken,
     abi: erc20Abi,
     functionName: "allowance",
@@ -108,27 +110,52 @@ export function useStaking() {
     query: { enabled: Boolean(address && stakingToken && contracts.staking) }
   });
 
-  const { writeContract, data: hash, isPending: isWritePending } = useWriteContract();
-  const { isLoading: isConfirming } = useWaitForTransactionReceipt({ hash });
+  const { writeContract, data: hash, error: writeError, isPending: isWritePending } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });
   const isPending = isWritePending || isConfirming;
 
-  const approveIfNeeded = React.useCallback(
-    async (amount: bigint) => {
-      const current = allowance ?? 0n;
-      if (current >= amount) return;
-      writeContract({
-        address: stakingToken,
-        abi: erc20Abi,
-        functionName: "approve",
-        args: [contracts.staking, amount]
-      });
-    },
-    [allowance, stakingToken, writeContract]
+  React.useEffect(() => {
+    if (!isConfirmed || pendingStakeAmount === null) return;
+
+    const amount = pendingStakeAmount;
+    setPendingStakeAmount(null);
+    void refetchAllowance();
+
+    writeContract({
+      address: contracts.staking,
+      abi: stakingAbi,
+      functionName: "stake",
+      args: [amount]
+    });
+  }, [isConfirmed, pendingStakeAmount, refetchAllowance, writeContract]);
+
+  React.useEffect(() => {
+    if (isConfirmed) {
+      void refetchStaked();
+      void refetchBalance();
+    }
+  }, [isConfirmed, refetchStaked, refetchBalance]);
+
+  const needsApproval = React.useCallback(
+    (amount: bigint) => (allowance ?? 0n) < amount,
+    [allowance]
   );
 
   const stake = React.useCallback(
-    async (amount: bigint) => {
-      await approveIfNeeded(amount);
+    (amount: bigint) => {
+      if (!address || amount === 0n) return;
+
+      if (needsApproval(amount)) {
+        setPendingStakeAmount(amount);
+        writeContract({
+          address: stakingToken,
+          abi: erc20Abi,
+          functionName: "approve",
+          args: [contracts.staking, maxUint256]
+        });
+        return;
+      }
+
       writeContract({
         address: contracts.staking,
         abi: stakingAbi,
@@ -136,11 +163,12 @@ export function useStaking() {
         args: [amount]
       });
     },
-    [approveIfNeeded, writeContract]
+    [address, needsApproval, stakingToken, writeContract]
   );
 
   const unstake = React.useCallback(
-    async (amount: bigint) => {
+    (amount: bigint) => {
+      if (!address || amount === 0n) return;
       writeContract({
         address: contracts.staking,
         abi: stakingAbi,
@@ -148,11 +176,13 @@ export function useStaking() {
         args: [amount]
       });
     },
-    [writeContract]
+    [address, writeContract]
   );
 
   return {
+    stakingToken,
     tokenSymbol,
+    onChainLabel,
     tokenDecimals,
     stakedRaw,
     stakedAmount,
@@ -160,8 +190,11 @@ export function useStaking() {
     walletBalanceRaw,
     walletBalanceFormatted,
     totalStakedFormatted,
+    needsApproval,
+    pendingApproval: pendingStakeAmount !== null,
     stake,
     unstake,
-    isPending
+    isPending,
+    error: writeError?.message ?? null
   };
 }

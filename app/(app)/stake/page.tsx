@@ -15,6 +15,7 @@ export default function StakePage() {
   const [stakeAmount, setStakeAmount] = React.useState("10");
   const [unstakeAmount, setUnstakeAmount] = React.useState("");
   const {
+    stakingToken,
     tokenSymbol,
     tokenDecimals,
     stakedRaw,
@@ -23,9 +24,12 @@ export default function StakePage() {
     walletBalanceRaw,
     walletBalanceFormatted,
     totalStakedFormatted,
+    needsApproval,
+    pendingApproval,
     stake,
     unstake,
-    isPending
+    isPending,
+    error
   } = useStaking();
 
   const stakeAmountWei = React.useMemo(() => {
@@ -64,7 +68,15 @@ export default function StakePage() {
           <Badge className="mb-4">APR 12.35%</Badge>
           <h3 className="text-lg font-semibold">Stake {tokenSymbol}</h3>
           <p className="text-sm text-muted-foreground">Total protocol staked: {totalStakedFormatted}</p>
-          <p className="mt-1 text-xs text-muted-foreground">Wallet balance: {isConnected ? walletBalanceFormatted : "—"}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Pool token balance: {isConnected ? walletBalanceFormatted : "—"}
+          </p>
+          {isConnected && walletBalanceRaw === 0n ? (
+            <p className="mt-1 text-xs text-amber-400">
+              You need the staking pool token ({stakingToken.slice(0, 6)}…{stakingToken.slice(-4)}) in
+              your wallet — WOPN/tUSDT cannot be staked until the pool is updated.
+            </p>
+          ) : null}
 
           <div className="mt-6 grid gap-4">
             <div>
@@ -98,8 +110,17 @@ export default function StakePage() {
               disabled={!isConnected || isPending || stakeAmountWei === 0n || stakeAmountWei > walletBalanceRaw}
               onClick={() => stake(stakeAmountWei)}
             >
-              {isConnected ? (isPending ? "Staking…" : `Stake ${tokenSymbol}`) : "Connect Wallet"}
+              {isConnected
+                ? isPending
+                  ? pendingApproval
+                    ? "Approving…"
+                    : "Staking…"
+                  : needsApproval(stakeAmountWei)
+                    ? `Approve ${tokenSymbol}`
+                    : `Stake ${tokenSymbol}`
+                : "Connect Wallet"}
             </Button>
+            {error ? <p className="text-center text-xs text-destructive">{error}</p> : null}
             <p className="text-center text-xs text-muted-foreground">+25 points per stake</p>
           </div>
         </div>

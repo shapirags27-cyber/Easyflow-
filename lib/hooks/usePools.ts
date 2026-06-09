@@ -7,7 +7,11 @@ import { contracts } from "@/lib/contracts";
 import { getTokenAddress } from "@/lib/tokens";
 import { ammRouterAbi, erc20Abi } from "@/lib/abis";
 
-export function usePools(token0Sym = "OPN", token1Sym = "tUSDT") {
+function poolDeadline() {
+  return BigInt(Math.floor(Date.now() / 1000) + 60 * 20);
+}
+
+export function usePools(token0Sym = "WOPN", token1Sym = "tUSDT") {
   const { address } = useAccount();
   const token0 = getTokenAddress(token0Sym);
   const token1 = getTokenAddress(token1Sym);
@@ -25,18 +29,33 @@ export function usePools(token0Sym = "OPN", token1Sym = "tUSDT") {
     query: { enabled: token1 !== "0x0000000000000000000000000000000000000000" }
   });
 
+  const { data: allowance0 } = useReadContract({
+    address: token0,
+    abi: erc20Abi,
+    functionName: "allowance",
+    args: address ? [address, contracts.ammRouter] : undefined,
+    query: { enabled: Boolean(address && token0 !== "0x0000000000000000000000000000000000000000") }
+  });
+  const { data: allowance1 } = useReadContract({
+    address: token1,
+    abi: erc20Abi,
+    functionName: "allowance",
+    args: address ? [address, contracts.ammRouter] : undefined,
+    query: { enabled: Boolean(address && token1 !== "0x0000000000000000000000000000000000000000") }
+  });
+
   const { writeContract, data: hash, isPending: isWritePending } = useWriteContract();
   const { isLoading: isConfirming } = useWaitForTransactionReceipt({ hash });
   const isPending = isWritePending || isConfirming;
 
   const addLiquidity = React.useCallback(
-    async (amount0: bigint, amount1: bigint) => {
+    (amount0: bigint, amount1: bigint) => {
       if (!address) return;
       writeContract({
         address: contracts.ammRouter,
         abi: ammRouterAbi,
         functionName: "addLiquidity",
-        args: [token0, token1, amount0, amount1, address]
+        args: [token0, token1, amount0, amount1, 0n, 0n, address, poolDeadline()]
       });
     },
     [address, token0, token1, writeContract]
@@ -44,15 +63,32 @@ export function usePools(token0Sym = "OPN", token1Sym = "tUSDT") {
 
   const approveAndAdd = React.useCallback(
     async (amount0: bigint, amount1: bigint) => {
-      writeContract({
-        address: token0,
-        abi: erc20Abi,
-        functionName: "approve",
-        args: [contracts.ammRouter, amount0]
-      });
-      await addLiquidity(amount0, amount1);
+      if (!address) return;
+      const a0 = allowance0 ?? 0n;
+      const a1 = allowance1 ?? 0n;
+
+      if (a0 < amount0) {
+        writeContract({
+          address: token0,
+          abi: erc20Abi,
+          functionName: "approve",
+          args: [contracts.ammRouter, amount0]
+        });
+        return;
+      }
+      if (a1 < amount1) {
+        writeContract({
+          address: token1,
+          abi: erc20Abi,
+          functionName: "approve",
+          args: [contracts.ammRouter, amount1]
+        });
+        return;
+      }
+
+      addLiquidity(amount0, amount1);
     },
-    [addLiquidity, token0, writeContract]
+    [addLiquidity, address, allowance0, allowance1, token0, token1, writeContract]
   );
 
   const canAdd =

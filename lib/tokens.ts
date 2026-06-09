@@ -44,8 +44,10 @@ export function getTokenLabel(address: string, onChainSymbol?: string): string {
   if (known) return known.symbol;
   const legacy = LEGACY_TOKEN_LABELS[address.toLowerCase()];
   if (legacy) return legacy;
-  if (onChainSymbol && onChainSymbol.length > 1) return onChainSymbol;
-  return onChainSymbol === "A" || onChainSymbol === "B" ? "OPN" : (onChainSymbol ?? "TOKEN");
+  const sym = onChainSymbol?.trim();
+  if (sym && /^[AB]$/i.test(sym)) return "OPN";
+  if (sym && sym.length > 1) return sym;
+  return "OPN";
 }
 
 export function getToken(symbol: string): Token | undefined {

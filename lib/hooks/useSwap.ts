@@ -9,10 +9,15 @@ import { ammRouterAbi, erc20Abi } from "@/lib/abis";
 
 type TokenRef = { symbol: string; address: Address; decimals: number };
 
+function swapDeadline() {
+  return BigInt(Math.floor(Date.now() / 1000) + 60 * 20);
+}
+
 export function useSwap() {
   const { address } = useAccount();
-  const [tokenInSym, setTokenInSym] = React.useState("OPN");
+  const [tokenInSym, setTokenInSym] = React.useState("WOPN");
   const [tokenOutSym, setTokenOutSym] = React.useState("tUSDT");
+  const [quoteError, setQuoteError] = React.useState<string | null>(null);
 
   const tokenInAddr = getTokenAddress(tokenInSym);
   const tokenOutAddr = getTokenAddress(tokenOutSym);
@@ -43,6 +48,11 @@ export function useSwap() {
 
   const [quotedOut, setQuotedOut] = React.useState<bigint>(0n);
 
+  const swapPath = React.useMemo(
+    () => [tokenIn.address, tokenOut.address] as Address[],
+    [tokenIn.address, tokenOut.address]
+  );
+
   const refreshQuote = React.useCallback(
     async (amountIn: bigint) => {
       if (
@@ -53,27 +63,33 @@ export function useSwap() {
         tokenIn.address.toLowerCase() === tokenOut.address.toLowerCase()
       ) {
         setQuotedOut(0n);
+        setQuoteError(null);
         return;
       }
+
       const { createPublicClient, http } = await import("viem");
       const { iopnTestnet } = await import("@/lib/chains");
       const client = createPublicClient({
         chain: iopnTestnet,
         transport: http(iopnTestnet.rpcUrls.default.http[0])
       });
+
       try {
-        const out = await client.readContract({
+        const amounts = await client.readContract({
           address: contracts.ammRouter,
           abi: ammRouterAbi,
-          functionName: "getAmountOut",
-          args: [amountIn, tokenIn.address, tokenOut.address]
+          functionName: "getAmountsOut",
+          args: [amountIn, swapPath]
         });
-        setQuotedOut(out as bigint);
+        const out = amounts[amounts.length - 1] ?? 0n;
+        setQuotedOut(out);
+        setQuoteError(out === 0n ? "No liquidity for this pair." : null);
       } catch {
         setQuotedOut(0n);
+        setQuoteError("No quote — check pair liquidity or token selection.");
       }
     },
-    [tokenIn.address, tokenOut.address]
+    [swapPath, tokenIn.address, tokenOut.address]
   );
 
   const { data: allowance } = useReadContract({
@@ -90,6 +106,7 @@ export function useSwap() {
 
   const doSwap = React.useCallback(
     async (amountIn: bigint, slippageBps: number) => {
+      if (!address) return;
       const out = quotedOut;
       const minOut = out - (out * BigInt(slippageBps)) / 10_000n;
       const currentAllowance = allowance ?? 0n;
@@ -107,17 +124,16 @@ export function useSwap() {
         address: contracts.ammRouter,
         abi: ammRouterAbi,
         functionName: "swapExactTokensForTokens",
-        args: [amountIn, minOut, tokenIn.address, tokenOut.address, (address ?? contracts.ammRouter) as Address]
+        args: [amountIn, minOut, swapPath, address, swapDeadline()]
       });
     },
-    [address, allowance, quotedOut, tokenIn.address, tokenOut.address, writeContract]
+    [address, allowance, quotedOut, swapPath, tokenIn.address, writeContract]
   );
 
   const formattedOut = quotedOut ? formatUnits(quotedOut, tokenOut.decimals) : "0";
-  const priceText =
-    quotedOut === 0n ? "—" : `~ ${formattedOut} ${tokenOut.symbol} for 1 ${tokenIn.symbol} (est.)`;
 
-  const canSwap = tokenIn.address.toLowerCase() !== tokenOut.address.toLowerCase();
+  const canSwap =
+    tokenIn.address.toLowerCase() !== tokenOut.address.toLowerCase() && quotedOut > 0n;
 
   const setTokenInOut = (a: string, b: string) => {
     setTokenInSym(a);
@@ -130,8 +146,13 @@ export function useSwap() {
     setTokenInOut,
     quote: {
       formattedOut,
-      priceText,
-      canSwap
+      priceText: quoteError
+        ? quoteError
+        : quotedOut === 0n
+          ? "Enter amount to see quote"
+          : `~ ${formattedOut} ${tokenOut.symbol} (est.)`,
+      canSwap,
+      quoteError
     },
     refreshQuote,
     doSwap,
