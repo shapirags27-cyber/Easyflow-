@@ -1,0 +1,152 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String?   @unique
+  passwordHash  String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  wallets       Wallet[]
+  transactions  Transaction[]
+  points        PointsBalance?
+  stakingPos    StakingPosition[]
+  liquidityPos  LiquidityPosition[]
+  referralsMade Referral[]        @relation("Referrer")
+  referredBy    Referral?         @relation("Referred")
+  notifications Notification[]
+}
+
+model Wallet {
+  id        String   @id @default(cuid())
+  address   String   @unique
+  chainId   Int      @default(984)
+  createdAt DateTime @default(now())
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Transaction {
+  id          String   @id @default(cuid())
+  txHash      String   @unique
+  type        TxType
+  status      TxStatus @default(PENDING)
+  fromToken   String?
+  toToken     String?
+  amountIn    String?
+  amountOut   String?
+  fee         String?
+  chainId     Int      @default(984)
+  blockNumber BigInt?
+  createdAt   DateTime @default(now())
+
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+enum TxType {
+  SWAP
+  ADD_LIQUIDITY
+  REMOVE_LIQUIDITY
+  STAKE
+  UNSTAKE
+  CLAIM_REWARDS
+  MULTISEND
+}
+
+enum TxStatus {
+  PENDING
+  CONFIRMED
+  FAILED
+}
+
+model PointsBalance {
+  id        String   @id @default(cuid())
+  balance   BigInt   @default(0)
+  lifetime  BigInt   @default(0)
+  updatedAt DateTime @updatedAt
+
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model StakingPosition {
+  id          String    @id @default(cuid())
+  tokenAddr   String
+  amount      String
+  stakedAt    DateTime  @default(now())
+  unstakedAt  DateTime?
+  rewards     String    @default("0")
+  isActive    Boolean   @default(true)
+
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model LiquidityPosition {
+  id         String    @id @default(cuid())
+  poolAddr   String
+  tokenA     String
+  tokenB     String
+  lpAmount   String
+  addedAt    DateTime  @default(now())
+  removedAt  DateTime?
+  isActive   Boolean   @default(true)
+
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model TokenPrice {
+  id        String   @id @default(cuid())
+  address   String
+  symbol    String
+  priceUsd  Float
+  change24h Float    @default(0)
+  volume24h Float    @default(0)
+  updatedAt DateTime @updatedAt
+
+  @@unique([address])
+}
+
+model Referral {
+  id         String   @id @default(cuid())
+  code       String   @unique
+  createdAt  DateTime @default(now())
+
+  referrerId String
+  referrer   User     @relation("Referrer", fields: [referrerId], references: [id], onDelete: Cascade)
+
+  referredId String?  @unique
+  referred   User?    @relation("Referred", fields: [referredId], references: [id])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  type      NotificationType
+  title     String
+  message   String
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+enum NotificationType {
+  SWAP
+  STAKE
+  UNSTAKE
+  LIQUIDITY
+  REWARD
+  REFERRAL
+  SYSTEM
+}
