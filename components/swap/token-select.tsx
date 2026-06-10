@@ -75,8 +75,6 @@ export function TokenSelect({ value, onChange, excludeAddress, className }: Toke
       ? picked.symbol
       : resolveTokenSymbol(value, onChainSym);
 
-  const selectedBalance = balances.get(value.toLowerCase());
-
   React.useEffect(() => {
     if (!open) return;
     setQuery("");
@@ -114,14 +112,7 @@ export function TokenSelect({ value, onChange, excludeAddress, className }: Toke
           className
         )}
       >
-        <span className="flex flex-col items-end leading-tight">
-          <span>{selectedSym}</span>
-          {isConnected ? (
-            <span className="text-[10px] font-normal tabular-nums text-muted-foreground">
-              Bal: {selectedBalance?.formatted ?? "0"}
-            </span>
-          ) : null}
-        </span>
+        <span>{selectedSym}</span>
         <ChevronDown className="h-4 w-4 opacity-60" />
       </button>
 

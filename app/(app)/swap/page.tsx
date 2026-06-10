@@ -71,7 +71,7 @@ export default function SwapPage() {
                     className="text-xs text-primary hover:underline"
                     onClick={() => setAmountIn(balanceInFormatted)}
                   >
-                    Balance: {balanceInFormatted} · Max
+                    Max
                   </button>
                 ) : null}
               </div>
