@@ -5,7 +5,7 @@ import { findSwapPaths, loadAmmGraph } from "@/lib/amm-graph";
 const FALLBACK_HUBS = [
   "0xBc022C9dEb5AF250A526321d16Ef52E39b4DBD84", // WOPN
   "0x3e01b4d892E0D0A219eF8BBe7e260a6bc8d9B31b", // tUSDT
-  "0xA463ce9F738E0B4035D8d036B902D0efADb24d20" // OPNV2
+  "0xA463ce9F738E0B4035D8d036B902D0efADb24d20" // OPNT
 ] as Address[];
 
 function fallbackPaths(tokenIn: Address, tokenOut: Address): Address[][] {

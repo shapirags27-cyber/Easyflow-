@@ -7,7 +7,7 @@ import { iopnTestnet } from "@/lib/chains";
 import { erc20Abi } from "@/lib/abis";
 import {
   isWopnAddress,
-  OPNV2_ADDRESS,
+  OPNT_ADDRESS,
   TUSDT_ADDRESS,
   WOPN_ADDRESS
 } from "@/lib/tokens";
@@ -21,7 +21,7 @@ export type MarketAsset = {
 
 export const LEND_MARKETS: MarketAsset[] = [
   { symbol: "OPN", address: WOPN_ADDRESS, supplyApy: "8.2%", borrowApy: "12.4%" },
-  { symbol: "OPNV2", address: OPNV2_ADDRESS, supplyApy: "7.5%", borrowApy: "11.2%" },
+  { symbol: "OPNT", address: OPNT_ADDRESS, supplyApy: "7.5%", borrowApy: "11.2%" },
   { symbol: "tUSDT", address: TUSDT_ADDRESS, supplyApy: "5.1%", borrowApy: "9.8%" }
 ];
 
@@ -102,12 +102,12 @@ export function useBorrowMarkets() {
   }, [address]);
 
   const opnBal = useAssetBalance(WOPN_ADDRESS, address);
-  const opnv2Bal = useAssetBalance(OPNV2_ADDRESS, address);
+  const opntBal = useAssetBalance(OPNT_ADDRESS, address);
   const tusdtBal = useAssetBalance(TUSDT_ADDRESS, address);
 
   const balances: Record<string, { raw: bigint; decimals: number; formatted: string }> = {
     OPN: opnBal,
-    OPNV2: opnv2Bal,
+    OPNT: opntBal,
     tUSDT: tusdtBal
   };
 

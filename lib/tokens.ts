@@ -11,13 +11,13 @@ export const NATIVE_OPN_ADDRESS =
   "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE" as Address;
 
 export const WOPN_ADDRESS = "0xBc022C9dEb5AF250A526321d16Ef52E39b4DBD84" as Address;
-export const OPNV2_ADDRESS = "0xA463ce9F738E0B4035D8d036B902D0efADb24d20" as Address;
+export const OPNT_ADDRESS = "0xA463ce9F738E0B4035D8d036B902D0efADb24d20" as Address;
 export const TUSDT_ADDRESS = "0x3e01b4d892E0D0A219eF8BBe7e260a6bc8d9B31b" as Address;
 
 export const TOKENS: Token[] = [
   { symbol: "OPN", name: "OPN", address: NATIVE_OPN_ADDRESS },
   { symbol: "WOPN", name: "Wrapped OPN", address: WOPN_ADDRESS },
-  { symbol: "OPNV2", name: "OPN V2", address: OPNV2_ADDRESS },
+  { symbol: "OPNT", name: "OPNT", address: OPNT_ADDRESS },
   { symbol: "tUSDT", name: "tUSDT", address: TUSDT_ADDRESS }
 ];
 
@@ -98,7 +98,7 @@ export function getSwapTokens(): Token[] {
   return [
     { symbol: "OPN", name: "OPN", address: NATIVE_OPN_ADDRESS },
     { symbol: "WOPN", name: "Wrapped OPN", address: WOPN_ADDRESS },
-    { symbol: "OPNV2", name: "OPN V2", address: OPNV2_ADDRESS },
+    { symbol: "OPNT", name: "OPNT", address: OPNT_ADDRESS },
     { symbol: "tUSDT", name: "tUSDT", address: TUSDT_ADDRESS }
   ];
 }
