@@ -5,7 +5,7 @@ import { formatUnits, type Address } from "viem";
 import { useAccount, useBalance, useReadContracts } from "wagmi";
 import { iopnTestnet } from "@/lib/chains";
 import { erc20Abi } from "@/lib/abis";
-import { isWopnAddress, WOPN_ADDRESS } from "@/lib/tokens";
+import { isNativeOpn, isWopnAddress, WOPN_ADDRESS } from "@/lib/tokens";
 
 export type TokenBalance = {
   raw: bigint;
@@ -37,50 +37,43 @@ export function useTokenBalances(addresses: Address[]) {
     });
   }, [addresses]);
 
-  const needsNative = unique.some((a) => isWopnAddress(a));
-  const erc20Addrs = unique.filter((a) => !isWopnAddress(a));
+  const needsNativeOpn = unique.some((a) => isNativeOpn(a));
 
   const { data: nativeBal } = useBalance({
     address: wallet,
     chainId: iopnTestnet.id,
-    query: { enabled: Boolean(wallet && needsNative) }
+    query: { enabled: Boolean(wallet && needsNativeOpn) }
   });
 
-  const contracts = React.useMemo(
-    () =>
-      wallet
-        ? unique.flatMap((token) => {
-            if (isWopnAddress(token)) {
-              return [
-                {
-                  address: WOPN_ADDRESS,
-                  abi: erc20Abi,
-                  functionName: "balanceOf" as const,
-                  args: [wallet] as const
-                }
-              ];
-            }
-            return [
-              {
-                address: token,
-                abi: erc20Abi,
-                functionName: "balanceOf" as const,
-                args: [wallet] as const
-              },
-              {
-                address: token,
-                abi: erc20Abi,
-                functionName: "decimals" as const
-              }
-            ];
-          })
-        : [],
-    [unique, wallet]
-  );
+  const contracts = React.useMemo(() => {
+    if (!wallet) return [];
+    const list: {
+      address: Address;
+      abi: typeof erc20Abi;
+      functionName: "balanceOf" | "decimals";
+      args?: readonly [Address];
+    }[] = [];
+
+    for (const token of unique) {
+      if (isNativeOpn(token)) continue;
+      list.push({
+        address: isWopnAddress(token) ? WOPN_ADDRESS : token,
+        abi: erc20Abi,
+        functionName: "balanceOf",
+        args: [wallet]
+      });
+      list.push({
+        address: isWopnAddress(token) ? WOPN_ADDRESS : token,
+        abi: erc20Abi,
+        functionName: "decimals"
+      });
+    }
+    return list;
+  }, [unique, wallet]);
 
   const { data, isLoading, refetch } = useReadContracts({
     contracts,
-    query: { enabled: Boolean(wallet && unique.length > 0) }
+    query: { enabled: Boolean(wallet && contracts.length > 0) }
   });
 
   const balances = React.useMemo(() => {
@@ -91,26 +84,27 @@ export function useTokenBalances(addresses: Address[]) {
     for (const addr of unique) {
       const key = addr.toLowerCase();
 
-      if (isWopnAddress(addr)) {
-        const wrapped =
-          data?.[dataIdx]?.status === "success" ? (data[dataIdx].result as bigint) : 0n;
-        dataIdx += 1;
-        const native = nativeBal?.value ?? 0n;
-        const total = native + wrapped;
+      if (isNativeOpn(addr)) {
+        const raw = nativeBal?.value ?? 0n;
         map.set(key, {
-          raw: total,
+          raw,
           decimals: 18,
-          formatted: formatCompact(total, 18)
+          formatted: formatCompact(raw, 18)
         });
         continue;
       }
 
-      const balResult = data?.[dataIdx];
-      const decResult = data?.[dataIdx + 1];
+      const balEntry = data?.[dataIdx] as { status: string; result?: unknown } | undefined;
+      const decEntry = data?.[dataIdx + 1] as { status: string; result?: unknown } | undefined;
       dataIdx += 2;
-      const raw = balResult?.status === "success" ? (balResult.result as bigint) : 0n;
+      const raw =
+        balEntry?.status === "success" && typeof balEntry.result === "bigint"
+          ? balEntry.result
+          : 0n;
       const decimals =
-        decResult?.status === "success" ? Number(decResult.result as number) : 18;
+        decEntry?.status === "success" && typeof decEntry.result === "number"
+          ? decEntry.result
+          : 18;
       map.set(key, {
         raw,
         decimals,

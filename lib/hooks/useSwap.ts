@@ -11,18 +11,19 @@ import {
 } from "wagmi";
 import { contracts } from "@/lib/contracts";
 import {
-  isWopnAddress,
+  isNativeOpn,
+  NATIVE_OPN_ADDRESS,
   resolveTokenSymbol,
+  toErc20Address,
   TUSDT_ADDRESS,
   WOPN_ADDRESS
 } from "@/lib/tokens";
 import { iopnTestnet } from "@/lib/chains";
 import { fetchSwapQuote } from "@/lib/swap-quote";
-import { ammRouterAbi, erc20Abi } from "@/lib/abis";
+import { ammRouterAbi, erc20Abi, wopnAbi } from "@/lib/abis";
 
 type TokenRef = { symbol: string; address: Address; decimals: number };
 
-const WOPN = WOPN_ADDRESS;
 const TUSDT = TUSDT_ADDRESS;
 
 function swapDeadline() {
@@ -34,17 +35,22 @@ function checksumPath(path: Address[]): Address[] {
 }
 
 function useTokenMeta(address: Address) {
+  const erc20Addr = toErc20Address(address);
+
   const { data: onChainSymbol } = useReadContract({
-    address,
+    address: erc20Addr,
     abi: erc20Abi,
     functionName: "symbol",
-    query: { enabled: address !== "0x0000000000000000000000000000000000000000" }
+    query: {
+      enabled:
+        erc20Addr !== "0x0000000000000000000000000000000000000000" && !isNativeOpn(address)
+    }
   });
   const { data: decimals } = useReadContract({
-    address,
+    address: erc20Addr,
     abi: erc20Abi,
     functionName: "decimals",
-    query: { enabled: address !== "0x0000000000000000000000000000000000000000" }
+    query: { enabled: erc20Addr !== "0x0000000000000000000000000000000000000000" }
   });
 
   const symbol = resolveTokenSymbol(address, onChainSymbol as string | undefined);
@@ -55,20 +61,24 @@ function useTokenMeta(address: Address) {
   };
 }
 
-type PendingSwap = {
-  amountIn: bigint;
-  slippageBps: number;
-};
+type PendingSwap =
+  | { kind: "wrap"; amountIn: bigint; slippageBps: number }
+  | { kind: "approve"; amountIn: bigint; slippageBps: number; unwrapAfter: boolean }
+  | { kind: "swap"; amountIn: bigint; slippageBps: number; wopnBefore: bigint; unwrapAfter: boolean }
+  | { kind: "unwrap"; amount: bigint };
 
 export function useSwap() {
   const { address } = useAccount();
-  const [tokenInAddress, setTokenInAddress] = React.useState<Address>(WOPN);
+  const [tokenInAddress, setTokenInAddress] = React.useState<Address>(NATIVE_OPN_ADDRESS);
   const [tokenOutAddress, setTokenOutAddress] = React.useState<Address>(TUSDT);
-  const [swapPath, setSwapPath] = React.useState<Address[]>([WOPN, TUSDT]);
+  const [swapPath, setSwapPath] = React.useState<Address[]>([WOPN_ADDRESS, TUSDT]);
   const [quotedOut, setQuotedOut] = React.useState<bigint>(0n);
   const [quoteError, setQuoteError] = React.useState<string | null>(null);
   const [isQuoting, setIsQuoting] = React.useState(false);
   const [pendingSwap, setPendingSwap] = React.useState<PendingSwap | null>(null);
+
+  const erc20In = toErc20Address(tokenInAddress);
+  const erc20Out = toErc20Address(tokenOutAddress);
 
   const inMeta = useTokenMeta(tokenInAddress);
   const outMeta = useTokenMeta(tokenOutAddress);
@@ -106,7 +116,7 @@ export function useSwap() {
         tokenIn.address.toLowerCase() === tokenOut.address.toLowerCase()
       ) {
         setQuotedOut(0n);
-        setSwapPath([tokenIn.address, tokenOut.address]);
+        setSwapPath([erc20In, erc20Out]);
         setQuoteError(null);
         return;
       }
@@ -147,30 +157,30 @@ export function useSwap() {
           setQuoteError(null);
         } else {
           setQuotedOut(0n);
-          setSwapPath([tokenIn.address, tokenOut.address]);
+          setSwapPath([erc20In, erc20Out]);
           setQuoteError(data.error ?? fallback.reason);
         }
       } catch {
         setQuotedOut(0n);
-        setSwapPath([tokenIn.address, tokenOut.address]);
+        setSwapPath([erc20In, erc20Out]);
         setQuoteError("Could not fetch quote — check RPC connection.");
       } finally {
         setIsQuoting(false);
       }
     },
-    [tokenIn.address, tokenOut.address]
+    [erc20In, erc20Out, tokenIn.address, tokenOut.address]
   );
 
   const { data: allowance, refetch: refetchAllowance } = useReadContract({
-    address: tokenIn.address,
+    address: erc20In,
     abi: erc20Abi,
     functionName: "allowance",
     args: address ? [address, contracts.ammRouter] : undefined,
     query: { enabled: Boolean(address && contracts.ammRouter) }
   });
 
-  const { data: balanceIn, refetch: refetchBalanceIn } = useReadContract({
-    address: tokenIn.address,
+  const { data: wrappedBalance, refetch: refetchWrappedBalance } = useReadContract({
+    address: WOPN_ADDRESS,
     abi: erc20Abi,
     functionName: "balanceOf",
     args: address ? [address] : undefined,
@@ -180,16 +190,33 @@ export function useSwap() {
   const { data: nativeOpnBal, refetch: refetchNativeOpn } = useBalance({
     address,
     chainId: iopnTestnet.id,
-    query: { enabled: Boolean(address && isWopnAddress(tokenIn.address)) }
+    query: { enabled: Boolean(address && isNativeOpn(tokenInAddress)) }
   });
 
-  const balanceInRaw = React.useMemo(() => {
-    const erc20 = balanceIn ?? 0n;
-    if (isWopnAddress(tokenIn.address)) {
-      return erc20 + (nativeOpnBal?.value ?? 0n);
+  // ERC20 balance for the selected input token
+  const { data: tokenInErc20Bal, refetch: refetchTokenInBal } = useReadContract({
+    address: erc20In,
+    abi: erc20Abi,
+    functionName: "balanceOf",
+    args: address ? [address] : undefined,
+    query: {
+      enabled: Boolean(address && !isNativeOpn(tokenInAddress))
     }
-    return erc20;
-  }, [balanceIn, nativeOpnBal?.value, tokenIn.address]);
+  });
+
+  const inputBalance = React.useMemo(() => {
+    if (isNativeOpn(tokenInAddress)) {
+      return nativeOpnBal?.value ?? 0n;
+    }
+    if (tokenInAddress === WOPN_ADDRESS) {
+      return wrappedBalance ?? 0n;
+    }
+    return tokenInErc20Bal ?? 0n;
+  }, [nativeOpnBal?.value, tokenInAddress, tokenInErc20Bal, wrappedBalance]);
+
+  const spendableForSwap = inputBalance;
+
+  const unwrapAfterSwap = isNativeOpn(tokenOutAddress);
 
   const runSwapTx = React.useCallback(
     (amountIn: bigint, slippageBps: number) => {
@@ -197,61 +224,143 @@ export function useSwap() {
       const out = quotedOutRef.current;
       if (out === 0n) return;
       const minOut = out - (out * BigInt(slippageBps)) / 10_000n;
+      setPendingSwap({
+        kind: "swap",
+        amountIn,
+        slippageBps,
+        wopnBefore: wrappedBalance ?? 0n,
+        unwrapAfter: unwrapAfterSwap
+      });
       writeContract({
         address: contracts.ammRouter,
         abi: ammRouterAbi,
         functionName: "swapExactTokensForTokens",
-        args: [
-          amountIn,
-          minOut,
-          checksumPath(swapPathRef.current),
-          address,
-          swapDeadline()
-        ]
+        args: [amountIn, minOut, checksumPath(swapPathRef.current), address, swapDeadline()]
       });
     },
-    [address, writeContract]
+    [address, unwrapAfterSwap, wrappedBalance, writeContract]
+  );
+
+  const continueAfterWrap = React.useCallback(
+    (amountIn: bigint, slippageBps: number) => {
+      const currentAllowance = allowance ?? 0n;
+      if (currentAllowance < amountIn) {
+        setPendingSwap({ kind: "approve", amountIn, slippageBps, unwrapAfter: unwrapAfterSwap });
+        writeContract({
+          address: WOPN_ADDRESS,
+          abi: erc20Abi,
+          functionName: "approve",
+          args: [contracts.ammRouter, maxUint256]
+        });
+        return;
+      }
+      runSwapTx(amountIn, slippageBps);
+    },
+    [allowance, runSwapTx, unwrapAfterSwap, writeContract]
   );
 
   React.useEffect(() => {
     if (!isConfirmed || !pendingSwap) return;
 
-    const { amountIn, slippageBps } = pendingSwap;
-    setPendingSwap(null);
-    void refetchAllowance();
-    runSwapTx(amountIn, slippageBps);
-  }, [isConfirmed, pendingSwap, refetchAllowance, runSwapTx]);
-
-  React.useEffect(() => {
-    if (isConfirmed && !pendingSwap) {
-      void refetchBalanceIn();
-      void refetchNativeOpn();
+    if (pendingSwap.kind === "wrap") {
+      const { amountIn, slippageBps } = pendingSwap;
+      setPendingSwap(null);
+      void refetchWrappedBalance();
       void refetchAllowance();
+      continueAfterWrap(amountIn, slippageBps);
+      return;
     }
-  }, [isConfirmed, pendingSwap, refetchBalanceIn, refetchNativeOpn, refetchAllowance]);
+
+    if (pendingSwap.kind === "approve") {
+      const { amountIn, slippageBps } = pendingSwap;
+      setPendingSwap(null);
+      runSwapTx(amountIn, slippageBps);
+      return;
+    }
+
+    if (pendingSwap.kind === "swap") {
+      const { wopnBefore, unwrapAfter } = pendingSwap;
+      setPendingSwap(null);
+      void refetchWrappedBalance();
+      void refetchNativeOpn();
+      void refetchTokenInBal();
+      void refetchAllowance();
+
+      if (unwrapAfter) {
+        void (async () => {
+          const { data: wopnNow } = await refetchWrappedBalance();
+          const received =
+            wopnNow !== undefined && wopnNow > wopnBefore ? wopnNow - wopnBefore : 0n;
+          if (received > 0n) {
+            setPendingSwap({ kind: "unwrap", amount: received });
+            writeContract({
+              address: WOPN_ADDRESS,
+              abi: wopnAbi,
+              functionName: "withdraw",
+              args: [received]
+            });
+          }
+        })();
+      }
+      return;
+    }
+
+    if (pendingSwap.kind === "unwrap") {
+      setPendingSwap(null);
+      void refetchWrappedBalance();
+      void refetchNativeOpn();
+    }
+  }, [
+    continueAfterWrap,
+    isConfirmed,
+    pendingSwap,
+    refetchAllowance,
+    refetchNativeOpn,
+    refetchTokenInBal,
+    refetchWrappedBalance,
+    runSwapTx,
+    wrappedBalance,
+    writeContract
+  ]);
 
   const doSwap = React.useCallback(
     (amountIn: bigint, slippageBps: number) => {
       if (!address || amountIn === 0n || quotedOut === 0n) return;
 
-      const walletBal = balanceInRaw;
-      const wrappedOnly = balanceIn ?? 0n;
-      if (walletBal < amountIn) {
+      setQuoteError(null);
+
+      if (spendableForSwap < amountIn) {
         setQuoteError(`Insufficient ${tokenIn.symbol} balance.`);
         return;
       }
-      if (isWopnAddress(tokenIn.address) && wrappedOnly < amountIn) {
-        setQuoteError(
-          `Need wrapped OPN to swap. You have ${tokenIn.symbol} native — wrap to WOPN first.`
-        );
+
+      if (isNativeOpn(tokenInAddress)) {
+        setPendingSwap({ kind: "wrap", amountIn, slippageBps });
+        writeContract({
+          address: WOPN_ADDRESS,
+          abi: wopnAbi,
+          functionName: "deposit",
+          value: amountIn
+        });
         return;
       }
 
+      if (inputBalance < amountIn) {
+        setQuoteError(`Insufficient ${tokenIn.symbol} balance.`);
+        return;
+      }
+
+      const swapAmount = amountIn;
       const currentAllowance = allowance ?? 0n;
-      if (currentAllowance < amountIn) {
-        setPendingSwap({ amountIn, slippageBps });
+      if (currentAllowance < swapAmount) {
+        setPendingSwap({
+          kind: "approve",
+          amountIn: swapAmount,
+          slippageBps,
+          unwrapAfter: unwrapAfterSwap
+        });
         writeContract({
-          address: tokenIn.address,
+          address: erc20In,
           abi: erc20Abi,
           functionName: "approve",
           args: [contracts.ammRouter, maxUint256]
@@ -259,23 +368,26 @@ export function useSwap() {
         return;
       }
 
-      runSwapTx(amountIn, slippageBps);
+      runSwapTx(swapAmount, slippageBps);
     },
     [
       address,
       allowance,
-      balanceInRaw,
-      balanceIn,
+      erc20In,
+      inputBalance,
       quotedOut,
       runSwapTx,
-      tokenIn.address,
+      spendableForSwap,
       tokenIn.symbol,
+      tokenInAddress,
+      unwrapAfterSwap,
+      wrappedBalance,
       writeContract
     ]
   );
 
   const formattedOut = quotedOut ? formatUnits(quotedOut, tokenOut.decimals) : "0";
-  const balanceInFormatted = formatUnits(balanceInRaw, tokenIn.decimals);
+  const balanceInFormatted = formatUnits(spendableForSwap, tokenIn.decimals);
 
   const canSwap =
     tokenIn.address.toLowerCase() !== tokenOut.address.toLowerCase() && quotedOut > 0n;
@@ -286,15 +398,17 @@ export function useSwap() {
   const swapTokenPositions = () => {
     setTokenInAddress(tokenOutAddress);
     setTokenOutAddress(tokenInAddress);
-    setSwapPath([tokenOutAddress, tokenInAddress]);
+    setSwapPath([toErc20Address(tokenOutAddress), toErc20Address(tokenInAddress)]);
   };
 
   const needsApproval = (amountIn: bigint) => (allowance ?? 0n) < amountIn;
 
+  const isWrapping = pendingSwap?.kind === "wrap" && isPending;
+
   return {
     tokenIn,
     tokenOut,
-    balanceInRaw,
+    balanceInRaw: spendableForSwap,
     balanceInFormatted,
     setTokenIn,
     setTokenOut,
@@ -305,16 +419,18 @@ export function useSwap() {
         ? quoteError
         : isQuoting
           ? "Fetching quote…"
-          : quotedOut === 0n
-            ? "Enter amount to see quote"
-            : `~ ${formattedOut} ${tokenOut.symbol} (est.)`,
+          : isWrapping
+            ? "Wrapping OPN…"
+            : quotedOut === 0n
+              ? "Enter amount to see quote"
+              : `~ ${formattedOut} ${tokenOut.symbol} (est.)`,
       canSwap,
       quoteError
     },
     refreshQuote,
     doSwap,
     isPending,
-    pendingApproval: pendingSwap !== null,
+    pendingApproval: pendingSwap?.kind === "approve" && isPending,
     needsApproval,
     swapError: writeError?.message ?? null
   };

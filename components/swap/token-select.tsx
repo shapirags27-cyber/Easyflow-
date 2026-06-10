@@ -5,7 +5,7 @@ import { ChevronDown, Search, X } from "lucide-react";
 import type { Address } from "viem";
 import { useAccount } from "wagmi";
 import { searchSwapTokens } from "@/lib/token-search";
-import { resolveTokenSymbol, type Token } from "@/lib/tokens";
+import { resolveTokenSymbol, tokenKey, type Token } from "@/lib/tokens";
 import { useWalletTokens } from "@/lib/hooks/useWalletTokens";
 import { useTokenBalances } from "@/lib/hooks/useTokenBalances";
 import { useTokenSymbols } from "@/lib/hooks/useTokenSymbols";
@@ -151,7 +151,7 @@ export function TokenSelect({ value, onChange, excludeAddress, className }: Toke
                 <p className="mt-2 text-xs text-muted-foreground">Loading wallet tokens…</p>
               ) : isConnected ? (
                 <p className="mt-2 text-xs text-muted-foreground">
-                  Showing tokens in your wallet on IOPN
+                  Wallet balances on IOPN plus common swap tokens
                 </p>
               ) : null}
             </div>
@@ -171,7 +171,7 @@ export function TokenSelect({ value, onChange, excludeAddress, className }: Toke
                     listSymbols.get(token.address.toLowerCase()) ?? token.symbol
                   );
                   return (
-                    <li key={token.address}>
+                    <li key={tokenKey(token)}>
                       <button
                         type="button"
                         onClick={() => pick({ ...token, symbol: sym })}

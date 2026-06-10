@@ -2,6 +2,7 @@ import type { Address, PublicClient } from "viem";
 import { contracts } from "@/lib/contracts";
 import { ammRouterAbi } from "@/lib/abis";
 import { buildCandidatePaths } from "@/lib/swap-path";
+import { toErc20Address } from "@/lib/tokens";
 
 export type SwapQuoteResult =
   | { ok: true; path: Address[]; amountOut: bigint }
@@ -21,7 +22,11 @@ export async function fetchSwapQuote(
     return { ok: false, reason: "AMM router not configured." };
   }
 
-  const paths = await buildCandidatePaths(client, tokenIn, tokenOut);
+  const paths = await buildCandidatePaths(
+    client,
+    toErc20Address(tokenIn),
+    toErc20Address(tokenOut)
+  );
   if (paths.length === 0) {
     return { ok: false, reason: "Select two different tokens." };
   }

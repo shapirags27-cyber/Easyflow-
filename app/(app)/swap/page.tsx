@@ -49,9 +49,11 @@ export default function SwapPage() {
   const swapLabel = !isConnected
     ? "Connect Wallet"
     : isPending
-      ? pendingApproval
-        ? "Approving…"
-        : "Swapping…"
+      ? quote.priceText.includes("Wrapping")
+        ? "Wrapping OPN…"
+        : pendingApproval
+          ? "Approving…"
+          : "Swapping…"
       : needsApproval(amountInWei)
         ? "Approve & Swap"
         : "Swap";

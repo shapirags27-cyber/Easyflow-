@@ -1,5 +1,5 @@
 import { isAddress, type Address } from "viem";
-import { TOKENS, getSwapTokens, type Token } from "@/lib/tokens";
+import { TOKENS, getSwapTokens, tokenKey, type Token } from "@/lib/tokens";
 
 function shortAddr(addr: string) {
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
@@ -17,22 +17,17 @@ export function searchSwapTokens(query: string, catalog: Token[] = getSwapTokens
       t.address.toLowerCase().includes(q)
   );
 
-  const byAddress = new Map<string, Token>();
+  const byKey = new Map<string, Token>();
   for (const t of matched) {
-    byAddress.set(t.address.toLowerCase(), t);
+    byKey.set(tokenKey(t), t);
   }
 
   if (isAddress(query.trim())) {
     const addr = query.trim() as Address;
-    const key = addr.toLowerCase();
-    if (!byAddress.has(key)) {
-      const known = TOKENS.find((t) => t.address.toLowerCase() === key);
-      byAddress.set(
-        key,
-        known ?? { symbol: shortAddr(addr), name: "Custom token", address: addr }
-      );
-    }
+    const known = TOKENS.find((t) => t.address.toLowerCase() === addr.toLowerCase());
+    const custom = known ?? { symbol: shortAddr(addr), name: "Custom token", address: addr };
+    byKey.set(tokenKey(custom), custom);
   }
 
-  return Array.from(byAddress.values());
+  return Array.from(byKey.values());
 }
