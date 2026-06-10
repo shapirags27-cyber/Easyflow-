@@ -1,5 +1,6 @@
 import { isAddress, type Address } from "viem";
-import { TOKENS, getSwapTokens, tokenKey, type Token } from "@/lib/tokens";
+import { isLpPairAddress } from "@/lib/amm-pairs";
+import { TOKENS, getSwapTokens, toLpToken, tokenKey, type Token } from "@/lib/tokens";
 
 function shortAddr(addr: string) {
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
@@ -25,7 +26,11 @@ export function searchSwapTokens(query: string, catalog: Token[] = getSwapTokens
   if (isAddress(query.trim())) {
     const addr = query.trim() as Address;
     const known = TOKENS.find((t) => t.address.toLowerCase() === addr.toLowerCase());
-    const custom = known ?? { symbol: shortAddr(addr), name: "Custom token", address: addr };
+    const custom = known
+      ? known
+      : isLpPairAddress(addr)
+        ? toLpToken(addr)
+        : { symbol: shortAddr(addr), name: "Custom token", address: addr };
     byKey.set(tokenKey(custom), custom);
   }
 

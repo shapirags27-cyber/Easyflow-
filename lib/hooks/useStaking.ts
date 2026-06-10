@@ -9,10 +9,17 @@ import {
   useWaitForTransactionReceipt
 } from "wagmi";
 import { contracts, STAKING_TOKEN_SYMBOL } from "@/lib/contracts";
-import { getTokenLabel } from "@/lib/tokens";
+import { getTokenLabel, LP_TOKEN_SYMBOL } from "@/lib/tokens";
+import { useLpPairs } from "@/lib/hooks/useLpPairs";
 import { erc20Abi, stakingAbi } from "@/lib/abis";
 
+function isAddressLikeLabel(label: string) {
+  const s = label.trim();
+  return s.startsWith("0x") || s.includes("…");
+}
+
 function useStakingToken() {
+  const { isLpPair } = useLpPairs();
   const { data: tokenAddr } = useReadContract({
     address: contracts.staking,
     abi: stakingAbi,
@@ -37,12 +44,16 @@ function useStakingToken() {
 
   const tokenDecimals = decimals ? Number(decimals) : 18;
   const onChainLabel = getTokenLabel(stakingToken, onChainSymbol as string | undefined);
-  const tokenSymbol =
-    stakingToken !== "0x0000000000000000000000000000000000000000"
+  const isLpStakingToken =
+    stakingToken !== "0x0000000000000000000000000000000000000000" &&
+    (isLpPair(stakingToken) || isAddressLikeLabel(onChainLabel));
+  const tokenSymbol = isLpStakingToken
+    ? LP_TOKEN_SYMBOL
+    : stakingToken !== "0x0000000000000000000000000000000000000000"
       ? STAKING_TOKEN_SYMBOL || onChainLabel
       : STAKING_TOKEN_SYMBOL;
 
-  return { stakingToken, tokenSymbol, onChainLabel, tokenDecimals };
+  return { stakingToken, tokenSymbol, onChainLabel, tokenDecimals, isLpStakingToken };
 }
 
 export function useStakedBalance() {
@@ -64,7 +75,8 @@ export function useStakedBalance() {
 
 export function useStaking() {
   const { address } = useAccount();
-  const { stakingToken, tokenSymbol, onChainLabel, tokenDecimals } = useStakingToken();
+  const { stakingToken, tokenSymbol, onChainLabel, tokenDecimals, isLpStakingToken } =
+    useStakingToken();
   const [pendingStakeAmount, setPendingStakeAmount] = React.useState<bigint | null>(null);
 
   const { data: staked, refetch: refetchStaked } = useReadContract({
@@ -183,6 +195,7 @@ export function useStaking() {
     stakingToken,
     tokenSymbol,
     onChainLabel,
+    isLpStakingToken,
     tokenDecimals,
     stakedRaw,
     stakedAmount,

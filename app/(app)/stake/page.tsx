@@ -15,8 +15,8 @@ export default function StakePage() {
   const [stakeAmount, setStakeAmount] = React.useState("10");
   const [unstakeAmount, setUnstakeAmount] = React.useState("");
   const {
-    stakingToken,
     tokenSymbol,
+    isLpStakingToken,
     tokenDecimals,
     stakedRaw,
     stakedAmount,
@@ -73,8 +73,9 @@ export default function StakePage() {
           </p>
           {isConnected && walletBalanceRaw === 0n ? (
             <p className="mt-1 text-xs text-amber-400">
-              You need the staking pool token ({stakingToken.slice(0, 6)}…{stakingToken.slice(-4)}) in
-              your wallet — WOPN/tUSDT cannot be staked until the pool is updated.
+              {isLpStakingToken
+                ? "You need LP TOKEN in your wallet to stake."
+                : `You need ${tokenSymbol} in your wallet to stake.`}
             </p>
           ) : null}
 
@@ -146,15 +147,16 @@ export default function StakePage() {
 
             <div>
               <div className="flex items-center justify-between">
-                <Label>Unstake amount ({tokenSymbol})</Label>
-                <button
-                  type="button"
-                  onClick={setMaxUnstake}
-                  disabled={!isConnected || stakedRaw === 0n}
-                  className="text-xs font-medium text-primary hover:underline disabled:opacity-50"
-                >
-                  Max
-                </button>
+                <Label>Unstake amount</Label>
+                {isConnected && stakedRaw > 0n ? (
+                  <button
+                    type="button"
+                    onClick={setMaxUnstake}
+                    className="text-xs font-medium text-primary hover:underline"
+                  >
+                    Max
+                  </button>
+                ) : null}
               </div>
               <div className="mt-2 flex gap-2">
                 <Input

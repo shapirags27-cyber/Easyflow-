@@ -8,7 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { usePools } from "@/lib/hooks/usePools";
-import { getUniqueTokens } from "@/lib/tokens";
+import { useTokenBalances } from "@/lib/hooks/useTokenBalances";
+import { useWalletTokens } from "@/lib/hooks/useWalletTokens";
+import { getUniqueTokens, LP_TOKEN_SYMBOL } from "@/lib/tokens";
 
 const poolTokens = getUniqueTokens();
 
@@ -19,6 +21,19 @@ export default function PoolsPage() {
   const [amount0, setAmount0] = React.useState("100");
   const [amount1, setAmount1] = React.useState("100");
   const { decimals0, decimals1, addLiquidity, isPending, canAdd } = usePools(token0Sym, token1Sym);
+  const { walletTokens, isLoading: loadingWallet } = useWalletTokens(isConnected);
+  const lpTokens = React.useMemo(
+    () => walletTokens.filter((t) => t.symbol === LP_TOKEN_SYMBOL),
+    [walletTokens]
+  );
+  const { balances: lpBalances } = useTokenBalances(lpTokens.map((t) => t.address));
+  const lpTotal = React.useMemo(() => {
+    let sum = 0n;
+    for (const t of lpTokens) {
+      sum += lpBalances.get(t.address.toLowerCase())?.raw ?? 0n;
+    }
+    return sum;
+  }, [lpBalances, lpTokens]);
 
   const submit = () => {
     const a = parseUnits(amount0 || "0", decimals0);
@@ -89,8 +104,16 @@ export default function PoolsPage() {
               <span className="font-semibold text-emerald-400">0.00 OPN</span>
             </div>
             <div className="flex justify-between rounded-lg border border-white/5 p-4">
-              <span className="text-muted-foreground">LP tokens</span>
-              <span className="font-semibold">—</span>
+              <span className="text-muted-foreground">LP TOKEN</span>
+              <span className="font-semibold">
+                {!isConnected
+                  ? "—"
+                  : loadingWallet
+                    ? "…"
+                    : lpTotal > 0n
+                      ? `${lpTokens.length} pool${lpTokens.length === 1 ? "" : "s"}`
+                      : "0"}
+              </span>
             </div>
             <Button variant="outline" className="w-full" disabled>
               Remove Liquidity

@@ -1,4 +1,5 @@
 import type { Address } from "viem";
+import { isLpPairAddress } from "@/lib/amm-pairs";
 
 export type Token = {
   symbol: string;
@@ -13,6 +14,9 @@ export const NATIVE_OPN_ADDRESS =
 export const WOPN_ADDRESS = "0xBc022C9dEb5AF250A526321d16Ef52E39b4DBD84" as Address;
 export const OPNT_ADDRESS = "0xA463ce9F738E0B4035D8d036B902D0efADb24d20" as Address;
 export const TUSDT_ADDRESS = "0x3e01b4d892E0D0A219eF8BBe7e260a6bc8d9B31b" as Address;
+
+export const LP_TOKEN_SYMBOL = "LP TOKEN";
+export const LP_TOKEN_NAME = "LP Token";
 
 export const TOKENS: Token[] = [
   { symbol: "OPN", name: "OPN", address: NATIVE_OPN_ADDRESS },
@@ -59,6 +63,7 @@ function isBadTicker(sym: string) {
 export function resolveTokenSymbol(address: string, onChainSymbol?: string): string {
   if (isNativeOpn(address)) return "OPN";
   if (isWopnAddress(address)) return "WOPN";
+  if (isLpPairAddress(address)) return LP_TOKEN_SYMBOL;
   const known = getTokenByAddress(address);
   if (known?.symbol && !isBadTicker(known.symbol)) {
     return known.symbol;
@@ -70,6 +75,7 @@ export function resolveTokenSymbol(address: string, onChainSymbol?: string): str
 export function getTokenLabel(address: string, onChainSymbol?: string): string {
   if (isNativeOpn(address)) return "OPN";
   if (isWopnAddress(address)) return "WOPN";
+  if (isLpPairAddress(address)) return LP_TOKEN_SYMBOL;
   const known = getTokenByAddress(address);
   if (known) return known.symbol;
   const legacy = LEGACY_TOKEN_LABELS[address.toLowerCase()];
@@ -101,6 +107,10 @@ export function getSwapTokens(): Token[] {
     { symbol: "OPNT", name: "OPNT", address: OPNT_ADDRESS },
     { symbol: "tUSDT", name: "tUSDT", address: TUSDT_ADDRESS }
   ];
+}
+
+export function toLpToken(address: Address): Token {
+  return { symbol: LP_TOKEN_SYMBOL, name: LP_TOKEN_NAME, address };
 }
 
 export function mergeTokenLists(...lists: Token[][]): Token[] {

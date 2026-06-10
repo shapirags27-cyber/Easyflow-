@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { isAddress, type Address } from "viem";
 import { erc20Abi } from "@/lib/abis";
+import { loadAmmPairAddresses } from "@/lib/amm-pairs";
 import { loadAmmTokens } from "@/lib/amm-tokens";
 import { getPublicClient } from "@/lib/server/chain";
 import {
@@ -8,6 +9,7 @@ import {
   mergeTokenLists,
   NATIVE_OPN_ADDRESS,
   resolveTokenSymbol,
+  toLpToken,
   WOPN_ADDRESS,
   type Token
 } from "@/lib/tokens";
@@ -24,7 +26,10 @@ export async function GET(req: Request) {
 
   try {
     const client = getPublicClient();
-    const poolTokens = await loadAmmTokens(client);
+    const [poolTokens, lpPairs] = await Promise.all([
+      loadAmmTokens(client),
+      loadAmmPairAddresses(client)
+    ]);
     const candidates = mergeTokenLists(getSwapTokens(), poolTokens);
 
     const uniqueAddrs = Array.from(
@@ -72,6 +77,28 @@ export async function GET(req: Request) {
       needsSymbol.forEach((token, idx) => {
         const sym = resolveTokenSymbol(token, symbols[idx]);
         held.push({ symbol: sym, name: sym, address: token });
+      });
+    }
+
+    for (let i = 0; i < lpPairs.length; i += BATCH_SIZE) {
+      const chunk = lpPairs.slice(i, i + BATCH_SIZE);
+      const balances = await Promise.all(
+        chunk.map((pair) =>
+          client
+            .readContract({
+              address: pair,
+              abi: erc20Abi,
+              functionName: "balanceOf",
+              args: [wallet as Address]
+            })
+            .catch(() => 0n)
+        )
+      );
+
+      chunk.forEach((pair, idx) => {
+        if (balances[idx] > 0n) {
+          held.push(toLpToken(pair));
+        }
       });
     }
 
