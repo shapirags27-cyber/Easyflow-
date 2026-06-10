@@ -3,7 +3,7 @@
 import * as React from "react";
 import { parseUnits } from "viem";
 import { useAccount } from "wagmi";
-import { ArrowDownUp } from "lucide-react";
+import { ArrowDownUp, X } from "lucide-react";
 import { AppShellBar } from "@/components/layout/app-shell-bar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,7 +29,8 @@ export default function SwapPage() {
     isPending,
     pendingApproval,
     needsApproval,
-    swapError
+    swapError,
+    clearSwapError
   } = useSwap();
 
   const amountInWei = React.useMemo(() => {
@@ -49,11 +50,9 @@ export default function SwapPage() {
   const swapLabel = !isConnected
     ? "Connect Wallet"
     : isPending
-      ? quote.priceText.includes("Wrapping")
-        ? "Wrapping OPN…"
-        : pendingApproval
-          ? "Approving…"
-          : "Swapping…"
+      ? pendingApproval
+        ? "Approving…"
+        : "Swapping…"
       : needsApproval(amountInWei)
         ? "Approve & Swap"
         : "Swap";
@@ -81,7 +80,10 @@ export default function SwapPage() {
                 <Input
                   className="min-w-0 flex-1 border-0 bg-transparent text-2xl font-semibold"
                   value={amountIn}
-                  onChange={(e) => setAmountIn(e.target.value)}
+                  onChange={(e) => {
+                    clearSwapError();
+                    setAmountIn(e.target.value);
+                  }}
                 />
                 <TokenSelect
                   value={tokenIn.address}
@@ -131,17 +133,31 @@ export default function SwapPage() {
                 />
               </div>
             </div>
-            <div
-              className={`text-xs ${
-                quote.quoteError || insufficientBalance || swapError
-                  ? "text-destructive"
-                  : "text-muted-foreground"
-              }`}
-            >
-              {insufficientBalance
-                ? `Insufficient ${tokenIn.symbol} balance.`
-                : swapError ?? quote.priceText}
-            </div>
+            {swapError ? (
+              <div className="flex items-start justify-between gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                <span>{swapError}</span>
+                <button
+                  type="button"
+                  onClick={clearSwapError}
+                  aria-label="Dismiss error"
+                  className="shrink-0 rounded p-0.5 hover:bg-destructive/20"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ) : (
+              <div
+                className={`text-xs ${
+                  quote.quoteError || insufficientBalance
+                    ? "text-destructive"
+                    : "text-muted-foreground"
+                }`}
+              >
+                {insufficientBalance
+                  ? `Insufficient ${tokenIn.symbol} balance.`
+                  : quote.priceText}
+              </div>
+            )}
 
             <Button
               size="lg"

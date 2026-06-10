@@ -34,6 +34,22 @@ function checksumPath(path: Address[]): Address[] {
   return path.map((a) => getAddress(a));
 }
 
+function formatSwapError(message: string): string {
+  const lower = message.toLowerCase();
+  if (lower.includes("user rejected") || lower.includes("user denied")) {
+    return "Transaction cancelled.";
+  }
+  if (lower.includes("insufficient funds")) {
+    return "Insufficient balance for gas or swap amount.";
+  }
+  const details = message.match(/Details:\s*([^\n]+)/i);
+  if (details?.[1]) return details[1].trim();
+  const reason = message.match(/Reason:\s*([^\n]+)/i);
+  if (reason?.[1]) return reason[1].trim();
+  if (message.length > 100) return `${message.slice(0, 100)}…`;
+  return message;
+}
+
 function useTokenMeta(address: Address) {
   const erc20Addr = toErc20Address(address);
 
@@ -76,6 +92,7 @@ export function useSwap() {
   const [quoteError, setQuoteError] = React.useState<string | null>(null);
   const [isQuoting, setIsQuoting] = React.useState(false);
   const [pendingSwap, setPendingSwap] = React.useState<PendingSwap | null>(null);
+  const [swapError, setSwapError] = React.useState<string | null>(null);
 
   const erc20In = toErc20Address(tokenInAddress);
   const erc20Out = toErc20Address(tokenOutAddress);
@@ -94,12 +111,45 @@ export function useSwap() {
     decimals: outMeta.decimals
   };
 
-  const { writeContract, data: hash, error: writeError, isPending: isWritePending } =
-    useWriteContract();
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
-    hash
-  });
+  const {
+    writeContract,
+    data: hash,
+    error: writeError,
+    isPending: isWritePending,
+    reset: resetWrite
+  } = useWriteContract();
+  const {
+    isLoading: isConfirming,
+    isSuccess: isConfirmed,
+    isError: isReceiptError,
+    error: receiptError
+  } = useWaitForTransactionReceipt({ hash });
   const isPending = isWritePending || isConfirming;
+
+  const clearSwapError = React.useCallback(() => {
+    setSwapError(null);
+    resetWrite();
+  }, [resetWrite]);
+
+  React.useEffect(() => {
+    if (!writeError) return;
+    setSwapError(formatSwapError(writeError.message));
+    setPendingSwap(null);
+    resetWrite();
+  }, [writeError, resetWrite]);
+
+  React.useEffect(() => {
+    if (!isReceiptError || !receiptError) return;
+    setSwapError(formatSwapError(receiptError.message));
+    setPendingSwap(null);
+    resetWrite();
+  }, [isReceiptError, receiptError, resetWrite]);
+
+  React.useEffect(() => {
+    if (!swapError) return;
+    const id = window.setTimeout(() => setSwapError(null), 8000);
+    return () => window.clearTimeout(id);
+  }, [swapError]);
 
   const quotedOutRef = React.useRef(quotedOut);
   const swapPathRef = React.useRef(swapPath);
@@ -328,6 +378,8 @@ export function useSwap() {
       if (!address || amountIn === 0n || quotedOut === 0n) return;
 
       setQuoteError(null);
+      setSwapError(null);
+      resetWrite();
 
       if (spendableForSwap < amountIn) {
         setQuoteError(`Insufficient ${tokenIn.symbol} balance.`);
@@ -335,13 +387,35 @@ export function useSwap() {
       }
 
       if (isNativeOpn(tokenInAddress)) {
-        setPendingSwap({ kind: "wrap", amountIn, slippageBps });
-        writeContract({
-          address: WOPN_ADDRESS,
-          abi: wopnAbi,
-          functionName: "deposit",
-          value: amountIn
-        });
+        const wrapped = wrappedBalance ?? 0n;
+        const wrapAmount = amountIn > wrapped ? amountIn - wrapped : 0n;
+        if (wrapAmount > 0n) {
+          setPendingSwap({ kind: "wrap", amountIn, slippageBps });
+          writeContract({
+            address: WOPN_ADDRESS,
+            abi: wopnAbi,
+            functionName: "deposit",
+            value: wrapAmount
+          });
+          return;
+        }
+        const currentAllowance = allowance ?? 0n;
+        if (currentAllowance < amountIn) {
+          setPendingSwap({
+            kind: "approve",
+            amountIn,
+            slippageBps,
+            unwrapAfter: unwrapAfterSwap
+          });
+          writeContract({
+            address: WOPN_ADDRESS,
+            abi: erc20Abi,
+            functionName: "approve",
+            args: [contracts.ammRouter, maxUint256]
+          });
+          return;
+        }
+        runSwapTx(amountIn, slippageBps);
         return;
       }
 
@@ -382,7 +456,8 @@ export function useSwap() {
       tokenInAddress,
       unwrapAfterSwap,
       wrappedBalance,
-      writeContract
+      writeContract,
+      resetWrite
     ]
   );
 
@@ -392,18 +467,26 @@ export function useSwap() {
   const canSwap =
     tokenIn.address.toLowerCase() !== tokenOut.address.toLowerCase() && quotedOut > 0n;
 
-  const setTokenIn = (addr: Address) => setTokenInAddress(addr);
-  const setTokenOut = (addr: Address) => setTokenOutAddress(addr);
+  const setTokenIn = (addr: Address) => {
+    setSwapError(null);
+    resetWrite();
+    setTokenInAddress(addr);
+  };
+  const setTokenOut = (addr: Address) => {
+    setSwapError(null);
+    resetWrite();
+    setTokenOutAddress(addr);
+  };
 
   const swapTokenPositions = () => {
+    setSwapError(null);
+    resetWrite();
     setTokenInAddress(tokenOutAddress);
     setTokenOutAddress(tokenInAddress);
     setSwapPath([toErc20Address(tokenOutAddress), toErc20Address(tokenInAddress)]);
   };
 
   const needsApproval = (amountIn: bigint) => (allowance ?? 0n) < amountIn;
-
-  const isWrapping = pendingSwap?.kind === "wrap" && isPending;
 
   return {
     tokenIn,
@@ -419,11 +502,9 @@ export function useSwap() {
         ? quoteError
         : isQuoting
           ? "Fetching quote…"
-          : isWrapping
-            ? "Wrapping OPN…"
-            : quotedOut === 0n
-              ? "Enter amount to see quote"
-              : `~ ${formattedOut} ${tokenOut.symbol} (est.)`,
+          : quotedOut === 0n
+            ? "Enter amount to see quote"
+            : `~ ${formattedOut} ${tokenOut.symbol} (est.)`,
       canSwap,
       quoteError
     },
@@ -432,6 +513,7 @@ export function useSwap() {
     isPending,
     pendingApproval: pendingSwap?.kind === "approve" && isPending,
     needsApproval,
-    swapError: writeError?.message ?? null
+    swapError,
+    clearSwapError
   };
 }
