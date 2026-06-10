@@ -4,19 +4,26 @@ import * as React from "react";
 import { formatUnits, getAddress, maxUint256, type Address } from "viem";
 import {
   useAccount,
+  useBalance,
   useReadContract,
   useWriteContract,
   useWaitForTransactionReceipt
 } from "wagmi";
 import { contracts } from "@/lib/contracts";
-import { resolveTokenSymbol } from "@/lib/tokens";
+import {
+  isWopnAddress,
+  resolveTokenSymbol,
+  TUSDT_ADDRESS,
+  WOPN_ADDRESS
+} from "@/lib/tokens";
+import { iopnTestnet } from "@/lib/chains";
 import { fetchSwapQuote } from "@/lib/swap-quote";
 import { ammRouterAbi, erc20Abi } from "@/lib/abis";
 
 type TokenRef = { symbol: string; address: Address; decimals: number };
 
-const WOPN = "0xBc022C9dEb5AF250A526321d16Ef52E39b4DBD84" as Address;
-const TUSDT = "0x3e01b4d892E0D0A219eF8BBe7e260a6bc8d9B31b" as Address;
+const WOPN = WOPN_ADDRESS;
+const TUSDT = TUSDT_ADDRESS;
 
 function swapDeadline() {
   return BigInt(Math.floor(Date.now() / 1000) + 60 * 20);
@@ -170,6 +177,20 @@ export function useSwap() {
     query: { enabled: Boolean(address) }
   });
 
+  const { data: nativeOpnBal, refetch: refetchNativeOpn } = useBalance({
+    address,
+    chainId: iopnTestnet.id,
+    query: { enabled: Boolean(address && isWopnAddress(tokenIn.address)) }
+  });
+
+  const balanceInRaw = React.useMemo(() => {
+    const erc20 = balanceIn ?? 0n;
+    if (isWopnAddress(tokenIn.address)) {
+      return erc20 + (nativeOpnBal?.value ?? 0n);
+    }
+    return erc20;
+  }, [balanceIn, nativeOpnBal?.value, tokenIn.address]);
+
   const runSwapTx = React.useCallback(
     (amountIn: bigint, slippageBps: number) => {
       if (!address) return;
@@ -204,17 +225,25 @@ export function useSwap() {
   React.useEffect(() => {
     if (isConfirmed && !pendingSwap) {
       void refetchBalanceIn();
+      void refetchNativeOpn();
       void refetchAllowance();
     }
-  }, [isConfirmed, pendingSwap, refetchBalanceIn, refetchAllowance]);
+  }, [isConfirmed, pendingSwap, refetchBalanceIn, refetchNativeOpn, refetchAllowance]);
 
   const doSwap = React.useCallback(
     (amountIn: bigint, slippageBps: number) => {
       if (!address || amountIn === 0n || quotedOut === 0n) return;
 
-      const walletBal = balanceIn ?? 0n;
+      const walletBal = balanceInRaw;
+      const wrappedOnly = balanceIn ?? 0n;
       if (walletBal < amountIn) {
         setQuoteError(`Insufficient ${tokenIn.symbol} balance.`);
+        return;
+      }
+      if (isWopnAddress(tokenIn.address) && wrappedOnly < amountIn) {
+        setQuoteError(
+          `Need wrapped OPN to swap. You have ${tokenIn.symbol} native — wrap to WOPN first.`
+        );
         return;
       }
 
@@ -235,6 +264,7 @@ export function useSwap() {
     [
       address,
       allowance,
+      balanceInRaw,
       balanceIn,
       quotedOut,
       runSwapTx,
@@ -245,7 +275,7 @@ export function useSwap() {
   );
 
   const formattedOut = quotedOut ? formatUnits(quotedOut, tokenOut.decimals) : "0";
-  const balanceInFormatted = balanceIn ? formatUnits(balanceIn, tokenIn.decimals) : "0";
+  const balanceInFormatted = formatUnits(balanceInRaw, tokenIn.decimals);
 
   const canSwap =
     tokenIn.address.toLowerCase() !== tokenOut.address.toLowerCase() && quotedOut > 0n;
@@ -264,7 +294,7 @@ export function useSwap() {
   return {
     tokenIn,
     tokenOut,
-    balanceInRaw: balanceIn ?? 0n,
+    balanceInRaw,
     balanceInFormatted,
     setTokenIn,
     setTokenOut,

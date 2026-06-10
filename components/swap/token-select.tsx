@@ -5,12 +5,8 @@ import { ChevronDown, Search, X } from "lucide-react";
 import type { Address } from "viem";
 import { useAccount } from "wagmi";
 import { searchSwapTokens } from "@/lib/token-search";
-import {
-  getSwapTokens,
-  getTokenByAddress,
-  resolveTokenSymbol,
-  type Token
-} from "@/lib/tokens";
+import { resolveTokenSymbol, type Token } from "@/lib/tokens";
+import { useWalletTokens } from "@/lib/hooks/useWalletTokens";
 import { useTokenBalances } from "@/lib/hooks/useTokenBalances";
 import { useTokenSymbols } from "@/lib/hooks/useTokenSymbols";
 import { Input } from "@/components/ui/input";
@@ -23,28 +19,21 @@ type TokenSelectProps = {
   className?: string;
 };
 
-function displayName(token: Token, symbol: string) {
-  const known = getTokenByAddress(token.address);
-  if (known && known.name && known.name !== symbol && !known.name.includes("AMM pool")) {
-    return known.name;
-  }
-  if (token.name && token.name !== symbol && !token.name.includes("AMM pool")) {
-    return token.name;
-  }
-  return null;
-}
-
 export function TokenSelect({ value, onChange, excludeAddress, className }: TokenSelectProps) {
   const { isConnected } = useAccount();
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
   const [picked, setPicked] = React.useState<Token | null>(null);
-  const catalog = React.useMemo(() => getSwapTokens(), []);
+  const { catalog, isLoading: loadingWallet, refresh } = useWalletTokens(isConnected);
   const inputRef = React.useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
     setPicked(null);
   }, [value]);
+
+  React.useEffect(() => {
+    if (open && isConnected) void refresh();
+  }, [open, isConnected, refresh]);
 
   const filteredCatalog = React.useMemo(() => {
     return catalog.filter(
@@ -59,10 +48,17 @@ export function TokenSelect({ value, onChange, excludeAddress, className }: Toke
     );
   }, [query, filteredCatalog, excludeAddress]);
 
-  const balanceAddresses = React.useMemo(() => [value], [value]);
+  const balanceAddresses = React.useMemo(() => {
+    const addrs = results.map((t) => t.address);
+    if (!addrs.some((a) => a.toLowerCase() === value.toLowerCase())) {
+      addrs.push(value);
+    }
+    return addrs;
+  }, [results, value]);
 
   const { balances } = useTokenBalances(balanceAddresses);
   const onChainSymbols = useTokenSymbols(balanceAddresses, true);
+  const listSymbols = useTokenSymbols(results.map((t) => t.address), open);
 
   const sortedResults = React.useMemo(() => {
     return [...results].sort((a, b) => {
@@ -71,10 +67,7 @@ export function TokenSelect({ value, onChange, excludeAddress, className }: Toke
       if (ba === bb) return a.symbol.localeCompare(b.symbol);
       return ba > bb ? -1 : 1;
     });
-  }, [results, balances, query]);
-
-  const listBalances = useTokenBalances(results.map((t) => t.address));
-  const listSymbols = useTokenSymbols(results.map((t) => t.address), open);
+  }, [results, balances]);
 
   const onChainSym = onChainSymbols.get(value.toLowerCase());
   const selectedSym =
@@ -163,21 +156,29 @@ export function TokenSelect({ value, onChange, excludeAddress, className }: Toke
                   className="pl-9"
                 />
               </div>
+              {loadingWallet ? (
+                <p className="mt-2 text-xs text-muted-foreground">Loading wallet tokens…</p>
+              ) : isConnected ? (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Showing tokens in your wallet on IOPN
+                </p>
+              ) : null}
             </div>
 
             <ul className="max-h-72 overflow-y-auto p-2">
               {sortedResults.length === 0 ? (
                 <li className="px-3 py-6 text-center text-sm text-muted-foreground">
-                  No tokens match your search.
+                  {isConnected
+                    ? "No tokens found. Paste a contract address to search."
+                    : "Connect wallet to see your tokens."}
                 </li>
               ) : (
                 sortedResults.map((token) => {
-                  const bal = listBalances.balances.get(token.address.toLowerCase());
+                  const bal = balances.get(token.address.toLowerCase());
                   const sym = resolveTokenSymbol(
                     token.address,
                     listSymbols.get(token.address.toLowerCase()) ?? token.symbol
                   );
-                  const subtitle = displayName(token, sym);
                   return (
                     <li key={token.address}>
                       <button
@@ -190,9 +191,6 @@ export function TokenSelect({ value, onChange, excludeAddress, className }: Toke
                       >
                         <div className="min-w-0">
                           <div className="font-medium">{sym}</div>
-                          {subtitle ? (
-                            <div className="truncate text-xs text-muted-foreground">{subtitle}</div>
-                          ) : null}
                         </div>
                         <div className="shrink-0 text-right">
                           {isConnected ? (

@@ -10,7 +10,7 @@ export function searchSwapTokens(query: string, catalog: Token[] = getSwapTokens
 
   if (!q) return catalog;
 
-  const matched = [...catalog, ...TOKENS].filter(
+  const matched = catalog.filter(
     (t) =>
       t.symbol.toLowerCase().includes(q) ||
       t.name.toLowerCase().includes(q) ||

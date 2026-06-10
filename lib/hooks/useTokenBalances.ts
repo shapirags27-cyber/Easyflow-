@@ -2,8 +2,10 @@
 
 import * as React from "react";
 import { formatUnits, type Address } from "viem";
-import { useAccount, useReadContracts } from "wagmi";
+import { useAccount, useBalance, useReadContracts } from "wagmi";
+import { iopnTestnet } from "@/lib/chains";
 import { erc20Abi } from "@/lib/abis";
+import { isWopnAddress, WOPN_ADDRESS } from "@/lib/tokens";
 
 export type TokenBalance = {
   raw: bigint;
@@ -35,22 +37,43 @@ export function useTokenBalances(addresses: Address[]) {
     });
   }, [addresses]);
 
+  const needsNative = unique.some((a) => isWopnAddress(a));
+  const erc20Addrs = unique.filter((a) => !isWopnAddress(a));
+
+  const { data: nativeBal } = useBalance({
+    address: wallet,
+    chainId: iopnTestnet.id,
+    query: { enabled: Boolean(wallet && needsNative) }
+  });
+
   const contracts = React.useMemo(
     () =>
       wallet
-        ? unique.flatMap((token) => [
-            {
-              address: token,
-              abi: erc20Abi,
-              functionName: "balanceOf" as const,
-              args: [wallet] as const
-            },
-            {
-              address: token,
-              abi: erc20Abi,
-              functionName: "decimals" as const
+        ? unique.flatMap((token) => {
+            if (isWopnAddress(token)) {
+              return [
+                {
+                  address: WOPN_ADDRESS,
+                  abi: erc20Abi,
+                  functionName: "balanceOf" as const,
+                  args: [wallet] as const
+                }
+              ];
             }
-          ])
+            return [
+              {
+                address: token,
+                abi: erc20Abi,
+                functionName: "balanceOf" as const,
+                args: [wallet] as const
+              },
+              {
+                address: token,
+                abi: erc20Abi,
+                functionName: "decimals" as const
+              }
+            ];
+          })
         : [],
     [unique, wallet]
   );
@@ -62,23 +85,41 @@ export function useTokenBalances(addresses: Address[]) {
 
   const balances = React.useMemo(() => {
     const map = new Map<string, TokenBalance>();
-    if (!data || !wallet) return map;
+    if (!wallet) return map;
 
-    for (let i = 0; i < unique.length; i++) {
-      const balResult = data[i * 2];
-      const decResult = data[i * 2 + 1];
+    let dataIdx = 0;
+    for (const addr of unique) {
+      const key = addr.toLowerCase();
+
+      if (isWopnAddress(addr)) {
+        const wrapped =
+          data?.[dataIdx]?.status === "success" ? (data[dataIdx].result as bigint) : 0n;
+        dataIdx += 1;
+        const native = nativeBal?.value ?? 0n;
+        const total = native + wrapped;
+        map.set(key, {
+          raw: total,
+          decimals: 18,
+          formatted: formatCompact(total, 18)
+        });
+        continue;
+      }
+
+      const balResult = data?.[dataIdx];
+      const decResult = data?.[dataIdx + 1];
+      dataIdx += 2;
       const raw = balResult?.status === "success" ? (balResult.result as bigint) : 0n;
       const decimals =
         decResult?.status === "success" ? Number(decResult.result as number) : 18;
-      const addr = unique[i].toLowerCase();
-      map.set(addr, {
+      map.set(key, {
         raw,
         decimals,
         formatted: formatCompact(raw, decimals)
       });
     }
+
     return map;
-  }, [data, unique, wallet]);
+  }, [data, nativeBal?.value, unique, wallet]);
 
   return { balances, isLoading, refetch, isConnected: Boolean(wallet) };
 }
