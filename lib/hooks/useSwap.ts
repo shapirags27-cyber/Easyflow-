@@ -1,10 +1,15 @@
 "use client";
 
 import * as React from "react";
-import { formatUnits, type Address } from "viem";
-import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import { formatUnits, getAddress, maxUint256, type Address } from "viem";
+import {
+  useAccount,
+  useReadContract,
+  useWriteContract,
+  useWaitForTransactionReceipt
+} from "wagmi";
 import { contracts } from "@/lib/contracts";
-import { getTokenByAddress } from "@/lib/tokens";
+import { resolveTokenSymbol } from "@/lib/tokens";
 import { fetchSwapQuote } from "@/lib/swap-quote";
 import { ammRouterAbi, erc20Abi } from "@/lib/abis";
 
@@ -17,9 +22,11 @@ function swapDeadline() {
   return BigInt(Math.floor(Date.now() / 1000) + 60 * 20);
 }
 
-function useTokenMeta(address: Address) {
-  const known = getTokenByAddress(address);
+function checksumPath(path: Address[]): Address[] {
+  return path.map((a) => getAddress(a));
+}
 
+function useTokenMeta(address: Address) {
   const { data: onChainSymbol } = useReadContract({
     address,
     abi: erc20Abi,
@@ -33,16 +40,18 @@ function useTokenMeta(address: Address) {
     query: { enabled: address !== "0x0000000000000000000000000000000000000000" }
   });
 
-  const symbol =
-    known?.symbol ??
-    (onChainSymbol as string | undefined) ??
-    `${address.slice(0, 6)}…${address.slice(-4)}`;
+  const symbol = resolveTokenSymbol(address, onChainSymbol as string | undefined);
 
   return {
     symbol,
     decimals: decimals ? Number(decimals) : 18
   };
 }
+
+type PendingSwap = {
+  amountIn: bigint;
+  slippageBps: number;
+};
 
 export function useSwap() {
   const { address } = useAccount();
@@ -52,6 +61,7 @@ export function useSwap() {
   const [quotedOut, setQuotedOut] = React.useState<bigint>(0n);
   const [quoteError, setQuoteError] = React.useState<string | null>(null);
   const [isQuoting, setIsQuoting] = React.useState(false);
+  const [pendingSwap, setPendingSwap] = React.useState<PendingSwap | null>(null);
 
   const inMeta = useTokenMeta(tokenInAddress);
   const outMeta = useTokenMeta(tokenOutAddress);
@@ -66,6 +76,18 @@ export function useSwap() {
     address: tokenOutAddress,
     decimals: outMeta.decimals
   };
+
+  const { writeContract, data: hash, error: writeError, isPending: isWritePending } =
+    useWriteContract();
+  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
+    hash
+  });
+  const isPending = isWritePending || isConfirming;
+
+  const quotedOutRef = React.useRef(quotedOut);
+  const swapPathRef = React.useRef(swapPath);
+  quotedOutRef.current = quotedOut;
+  swapPathRef.current = swapPath;
 
   const refreshQuote = React.useCallback(
     async (amountIn: bigint) => {
@@ -99,7 +121,7 @@ export function useSwap() {
 
         if (res.ok && data.amountOut && data.amountOut !== "0" && data.path?.length) {
           setQuotedOut(BigInt(data.amountOut));
-          setSwapPath(data.path);
+          setSwapPath(checksumPath(data.path));
           setQuoteError(null);
           return;
         }
@@ -114,7 +136,7 @@ export function useSwap() {
         const fallback = await fetchSwapQuote(client, tokenIn.address, tokenOut.address, amountIn);
         if (fallback.ok) {
           setQuotedOut(fallback.amountOut);
-          setSwapPath(fallback.path);
+          setSwapPath(checksumPath(fallback.path));
           setQuoteError(null);
         } else {
           setQuotedOut(0n);
@@ -132,7 +154,7 @@ export function useSwap() {
     [tokenIn.address, tokenOut.address]
   );
 
-  const { data: allowance } = useReadContract({
+  const { data: allowance, refetch: refetchAllowance } = useReadContract({
     address: tokenIn.address,
     abi: erc20Abi,
     functionName: "allowance",
@@ -140,37 +162,90 @@ export function useSwap() {
     query: { enabled: Boolean(address && contracts.ammRouter) }
   });
 
-  const { writeContract, data: hash, isPending: isWritePending } = useWriteContract();
-  const { isLoading: isConfirming } = useWaitForTransactionReceipt({ hash });
-  const isPending = isWritePending || isConfirming;
+  const { data: balanceIn, refetch: refetchBalanceIn } = useReadContract({
+    address: tokenIn.address,
+    abi: erc20Abi,
+    functionName: "balanceOf",
+    args: address ? [address] : undefined,
+    query: { enabled: Boolean(address) }
+  });
 
-  const doSwap = React.useCallback(
-    async (amountIn: bigint, slippageBps: number) => {
+  const runSwapTx = React.useCallback(
+    (amountIn: bigint, slippageBps: number) => {
       if (!address) return;
-      const out = quotedOut;
+      const out = quotedOutRef.current;
+      if (out === 0n) return;
       const minOut = out - (out * BigInt(slippageBps)) / 10_000n;
-      const currentAllowance = allowance ?? 0n;
-      if (currentAllowance < amountIn) {
-        writeContract({
-          address: tokenIn.address,
-          abi: erc20Abi,
-          functionName: "approve",
-          args: [contracts.ammRouter, amountIn]
-        });
-        return;
-      }
-
       writeContract({
         address: contracts.ammRouter,
         abi: ammRouterAbi,
         functionName: "swapExactTokensForTokens",
-        args: [amountIn, minOut, swapPath, address, swapDeadline()]
+        args: [
+          amountIn,
+          minOut,
+          checksumPath(swapPathRef.current),
+          address,
+          swapDeadline()
+        ]
       });
     },
-    [address, allowance, quotedOut, swapPath, tokenIn.address, writeContract]
+    [address, writeContract]
+  );
+
+  React.useEffect(() => {
+    if (!isConfirmed || !pendingSwap) return;
+
+    const { amountIn, slippageBps } = pendingSwap;
+    setPendingSwap(null);
+    void refetchAllowance();
+    runSwapTx(amountIn, slippageBps);
+  }, [isConfirmed, pendingSwap, refetchAllowance, runSwapTx]);
+
+  React.useEffect(() => {
+    if (isConfirmed && !pendingSwap) {
+      void refetchBalanceIn();
+      void refetchAllowance();
+    }
+  }, [isConfirmed, pendingSwap, refetchBalanceIn, refetchAllowance]);
+
+  const doSwap = React.useCallback(
+    (amountIn: bigint, slippageBps: number) => {
+      if (!address || amountIn === 0n || quotedOut === 0n) return;
+
+      const walletBal = balanceIn ?? 0n;
+      if (walletBal < amountIn) {
+        setQuoteError(`Insufficient ${tokenIn.symbol} balance.`);
+        return;
+      }
+
+      const currentAllowance = allowance ?? 0n;
+      if (currentAllowance < amountIn) {
+        setPendingSwap({ amountIn, slippageBps });
+        writeContract({
+          address: tokenIn.address,
+          abi: erc20Abi,
+          functionName: "approve",
+          args: [contracts.ammRouter, maxUint256]
+        });
+        return;
+      }
+
+      runSwapTx(amountIn, slippageBps);
+    },
+    [
+      address,
+      allowance,
+      balanceIn,
+      quotedOut,
+      runSwapTx,
+      tokenIn.address,
+      tokenIn.symbol,
+      writeContract
+    ]
   );
 
   const formattedOut = quotedOut ? formatUnits(quotedOut, tokenOut.decimals) : "0";
+  const balanceInFormatted = balanceIn ? formatUnits(balanceIn, tokenIn.decimals) : "0";
 
   const canSwap =
     tokenIn.address.toLowerCase() !== tokenOut.address.toLowerCase() && quotedOut > 0n;
@@ -184,9 +259,13 @@ export function useSwap() {
     setSwapPath([tokenOutAddress, tokenInAddress]);
   };
 
+  const needsApproval = (amountIn: bigint) => (allowance ?? 0n) < amountIn;
+
   return {
     tokenIn,
     tokenOut,
+    balanceInRaw: balanceIn ?? 0n,
+    balanceInFormatted,
     setTokenIn,
     setTokenOut,
     swapTokenPositions,
@@ -204,6 +283,9 @@ export function useSwap() {
     },
     refreshQuote,
     doSwap,
-    isPending
+    isPending,
+    pendingApproval: pendingSwap !== null,
+    needsApproval,
+    swapError: writeError?.message ?? null
   };
 }

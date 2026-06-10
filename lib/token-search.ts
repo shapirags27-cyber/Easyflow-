@@ -1,11 +1,11 @@
 import { isAddress, type Address } from "viem";
-import { TOKENS, getUniqueTokens, type Token } from "@/lib/tokens";
+import { TOKENS, getSwapTokens, type Token } from "@/lib/tokens";
 
 function shortAddr(addr: string) {
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
 }
 
-export function searchSwapTokens(query: string, catalog: Token[] = getUniqueTokens()): Token[] {
+export function searchSwapTokens(query: string, catalog: Token[] = getSwapTokens()): Token[] {
   const q = query.trim().toLowerCase();
 
   if (!q) return catalog;

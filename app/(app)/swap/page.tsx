@@ -18,13 +18,18 @@ export default function SwapPage() {
   const {
     tokenIn,
     tokenOut,
+    balanceInFormatted,
+    balanceInRaw,
     setTokenIn,
     setTokenOut,
     swapTokenPositions,
     quote,
     refreshQuote,
     doSwap,
-    isPending
+    isPending,
+    pendingApproval,
+    needsApproval,
+    swapError
   } = useSwap();
 
   const amountInWei = React.useMemo(() => {
@@ -37,7 +42,19 @@ export default function SwapPage() {
 
   React.useEffect(() => {
     refreshQuote(amountInWei);
-  }, [amountInWei, refreshQuote]);
+  }, [amountInWei, refreshQuote, tokenIn.address, tokenOut.address]);
+
+  const insufficientBalance = isConnected && amountInWei > 0n && balanceInRaw < amountInWei;
+
+  const swapLabel = !isConnected
+    ? "Connect Wallet"
+    : isPending
+      ? pendingApproval
+        ? "Approving…"
+        : "Swapping…"
+      : needsApproval(amountInWei)
+        ? "Approve & Swap"
+        : "Swap";
 
   return (
     <>
@@ -46,7 +63,18 @@ export default function SwapPage() {
         <div className="glass rounded-2xl p-6 glow-primary">
           <div className="grid gap-4">
             <div className="rounded-xl bg-secondary/50 p-4">
-              <Label className="text-muted-foreground">From</Label>
+              <div className="flex items-center justify-between">
+                <Label className="text-muted-foreground">From</Label>
+                {isConnected ? (
+                  <button
+                    type="button"
+                    className="text-xs text-primary hover:underline"
+                    onClick={() => setAmountIn(balanceInFormatted)}
+                  >
+                    Balance: {balanceInFormatted} · Max
+                  </button>
+                ) : null}
+              </div>
               <div className="mt-2 flex gap-2">
                 <Input
                   className="min-w-0 flex-1 border-0 bg-transparent text-2xl font-semibold"
@@ -102,18 +130,30 @@ export default function SwapPage() {
               </div>
             </div>
             <div
-              className={`text-xs ${quote.quoteError ? "text-destructive" : "text-muted-foreground"}`}
+              className={`text-xs ${
+                quote.quoteError || insufficientBalance || swapError
+                  ? "text-destructive"
+                  : "text-muted-foreground"
+              }`}
             >
-              {quote.priceText}
+              {insufficientBalance
+                ? `Insufficient ${tokenIn.symbol} balance.`
+                : swapError ?? quote.priceText}
             </div>
 
             <Button
               size="lg"
               className="w-full glow-primary"
-              disabled={!isConnected || isPending || amountInWei === 0n || !quote.canSwap}
+              disabled={
+                !isConnected ||
+                isPending ||
+                amountInWei === 0n ||
+                !quote.canSwap ||
+                insufficientBalance
+              }
               onClick={() => doSwap(amountInWei, slippageBps)}
             >
-              {isConnected ? (isPending ? "Swapping…" : "Swap") : "Connect Wallet"}
+              {swapLabel}
             </Button>
             <p className="text-center text-xs text-muted-foreground">+15 points per swap</p>
           </div>

@@ -46,7 +46,19 @@ const LEGACY_TOKEN_LABELS: Record<string, string> = {
 };
 
 export function getTokenByAddress(address: string): Token | undefined {
-  return TOKENS.find((t) => t.address.toLowerCase() === address.toLowerCase());
+  const key = address.toLowerCase();
+  const swap = getSwapTokens().find((t) => t.address.toLowerCase() === key);
+  if (swap) return swap;
+  return TOKENS.find((t) => t.address.toLowerCase() === key);
+}
+
+/** Best display ticker: catalog label first, then on-chain symbol, never a raw address. */
+export function resolveTokenSymbol(address: string, onChainSymbol?: string): string {
+  const known = getTokenByAddress(address);
+  if (known?.symbol && !known.symbol.includes("…") && !known.symbol.startsWith("0x")) {
+    return known.symbol;
+  }
+  return getTokenLabel(address, onChainSymbol);
 }
 
 export function getTokenLabel(address: string, onChainSymbol?: string): string {
@@ -77,4 +89,14 @@ export function getUniqueTokens(): Token[] {
     seen.add(key);
     return true;
   });
+}
+
+/** Curated tokens with on-chain AMM liquidity (default swap picker list). */
+export function getSwapTokens(): Token[] {
+  const swappable = new Set([
+    "0xbc022c9deb5af250a526321d16ef52e39b4dbd84", // WOPN
+    "0xa463ce9f738e0b4035d8d036b902d0efadb24d20", // OPNV2
+    "0x3e01b4d892e0d0a219ef8bbe7e260a6bc8d9b31b" // tUSDT
+  ]);
+  return getUniqueTokens().filter((t) => swappable.has(t.address.toLowerCase()));
 }
