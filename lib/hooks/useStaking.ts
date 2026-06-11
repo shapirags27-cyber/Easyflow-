@@ -79,30 +79,54 @@ export function useStaking() {
     useStakingToken();
   const [pendingStakeAmount, setPendingStakeAmount] = React.useState<bigint | null>(null);
 
-  const { data: staked, refetch: refetchStaked } = useReadContract({
+  const { data: staked, refetch: refetchStaked, isLoading: isStakedLoading } = useReadContract({
     address: contracts.staking,
     abi: stakingAbi,
     functionName: "stakedBalance",
     args: address ? [address] : undefined,
-    query: { enabled: Boolean(address && contracts.staking) }
+    query: { enabled: Boolean(address && contracts.staking), staleTime: 0 }
   });
 
   const stakedRaw = staked ?? 0n;
   const stakedAmount = formatUnits(stakedRaw, tokenDecimals);
   const stakedFormatted = `${stakedAmount} ${tokenSymbol}`;
 
-  const { data: walletBalance, refetch: refetchBalance } = useReadContract({
+  const {
+    data: walletBalance,
+    refetch: refetchBalance,
+    isLoading: isWalletBalanceLoading
+  } = useReadContract({
     address: stakingToken,
     abi: erc20Abi,
     functionName: "balanceOf",
     args: address ? [address] : undefined,
     query: {
       enabled:
-        Boolean(address) && stakingToken !== "0x0000000000000000000000000000000000000000"
+        Boolean(address) && stakingToken !== "0x0000000000000000000000000000000000000000",
+      staleTime: 0
     }
   });
   const walletBalanceRaw = walletBalance ?? 0n;
   const walletBalanceFormatted = `${formatUnits(walletBalanceRaw, tokenDecimals)} ${tokenSymbol}`;
+
+  const { data: allowance, refetch: refetchAllowance } = useReadContract({
+    address: stakingToken,
+    abi: erc20Abi,
+    functionName: "allowance",
+    args: address ? [address, contracts.staking] : undefined,
+    query: {
+      enabled: Boolean(address && stakingToken && contracts.staking),
+      staleTime: 0
+    }
+  });
+
+  React.useEffect(() => {
+    setPendingStakeAmount(null);
+    if (!address) return;
+    void refetchStaked();
+    void refetchBalance();
+    void refetchAllowance();
+  }, [address, refetchAllowance, refetchBalance, refetchStaked]);
 
   const { data: totalStaked } = useReadContract({
     address: contracts.staking,
@@ -113,14 +137,6 @@ export function useStaking() {
   const totalStakedFormatted = totalStaked
     ? `${formatUnits(totalStaked, tokenDecimals)} ${tokenSymbol}`
     : `0 ${tokenSymbol}`;
-
-  const { data: allowance, refetch: refetchAllowance } = useReadContract({
-    address: stakingToken,
-    abi: erc20Abi,
-    functionName: "allowance",
-    args: address ? [address, contracts.staking] : undefined,
-    query: { enabled: Boolean(address && stakingToken && contracts.staking) }
-  });
 
   const { writeContract, data: hash, error: writeError, isPending: isWritePending } = useWriteContract();
   const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });
@@ -202,6 +218,8 @@ export function useStaking() {
     stakedFormatted,
     walletBalanceRaw,
     walletBalanceFormatted,
+    isWalletBalanceLoading,
+    isStakedLoading,
     totalStakedFormatted,
     needsApproval,
     pendingApproval: pendingStakeAmount !== null,

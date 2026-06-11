@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { useStaking } from "@/lib/hooks/useStaking";
 
 export default function StakePage() {
-  const { isConnected } = useAccount();
+  const { address, isConnected } = useAccount();
   const [stakeAmount, setStakeAmount] = React.useState("10");
   const [unstakeAmount, setUnstakeAmount] = React.useState("");
   const {
@@ -23,6 +23,8 @@ export default function StakePage() {
     stakedFormatted,
     walletBalanceRaw,
     walletBalanceFormatted,
+    isWalletBalanceLoading,
+    isStakedLoading,
     totalStakedFormatted,
     needsApproval,
     pendingApproval,
@@ -31,6 +33,13 @@ export default function StakePage() {
     isPending,
     error
   } = useStaking();
+
+  React.useEffect(() => {
+    setStakeAmount("10");
+    setUnstakeAmount("");
+  }, [address]);
+
+  const isBalanceLoading = isWalletBalanceLoading || isStakedLoading;
 
   const stakeAmountWei = React.useMemo(() => {
     try {
@@ -69,9 +78,10 @@ export default function StakePage() {
           <h3 className="text-lg font-semibold">Stake {tokenSymbol}</h3>
           <p className="text-sm text-muted-foreground">Total protocol staked: {totalStakedFormatted}</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            Pool token balance: {isConnected ? walletBalanceFormatted : "—"}
+            Pool token balance:{" "}
+            {!isConnected ? "—" : isBalanceLoading ? "Loading…" : walletBalanceFormatted}
           </p>
-          {isConnected && walletBalanceRaw === 0n ? (
+          {isConnected && !isBalanceLoading && walletBalanceRaw === 0n ? (
             <p className="mt-1 text-xs text-amber-400">
               {isLpStakingToken
                 ? "You need LP TOKEN in your wallet to stake."
@@ -108,7 +118,13 @@ export default function StakePage() {
             <Button
               size="lg"
               className="w-full"
-              disabled={!isConnected || isPending || stakeAmountWei === 0n || stakeAmountWei > walletBalanceRaw}
+              disabled={
+                !isConnected ||
+                isPending ||
+                isBalanceLoading ||
+                stakeAmountWei === 0n ||
+                stakeAmountWei > walletBalanceRaw
+              }
               onClick={() => stake(stakeAmountWei)}
             >
               {isConnected
@@ -133,10 +149,14 @@ export default function StakePage() {
               <div className="text-sm text-muted-foreground">Staked ({tokenSymbol})</div>
               <div className="text-3xl font-bold">
                 {isConnected ? (
-                  <>
-                    {stakedAmount}{" "}
-                    <span className="text-lg font-semibold text-muted-foreground">{tokenSymbol}</span>
-                  </>
+                  isStakedLoading ? (
+                    "Loading…"
+                  ) : (
+                    <>
+                      {stakedAmount}{" "}
+                      <span className="text-lg font-semibold text-muted-foreground">{tokenSymbol}</span>
+                    </>
+                  )
                 ) : (
                   "—"
                 )}
