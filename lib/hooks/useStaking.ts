@@ -79,7 +79,7 @@ export function useStaking() {
     useStakingToken();
   const [pendingStakeAmount, setPendingStakeAmount] = React.useState<bigint | null>(null);
 
-  const { data: staked, refetch: refetchStaked, isLoading: isStakedLoading } = useReadContract({
+  const { data: staked, refetch: refetchStaked, isPending: isStakedPending } = useReadContract({
     address: contracts.staking,
     abi: stakingAbi,
     functionName: "stakedBalance",
@@ -94,7 +94,7 @@ export function useStaking() {
   const {
     data: walletBalance,
     refetch: refetchBalance,
-    isLoading: isWalletBalanceLoading
+    isPending: isWalletBalancePending
   } = useReadContract({
     address: stakingToken,
     abi: erc20Abi,
@@ -120,7 +120,11 @@ export function useStaking() {
     }
   });
 
+  const prevAddressRef = React.useRef<string | undefined>(undefined);
   React.useEffect(() => {
+    const next = address?.toLowerCase();
+    if (prevAddressRef.current === next) return;
+    prevAddressRef.current = next;
     setPendingStakeAmount(null);
     if (!address) return;
     void refetchStaked();
@@ -138,14 +142,37 @@ export function useStaking() {
     ? `${formatUnits(totalStaked, tokenDecimals)} ${tokenSymbol}`
     : `0 ${tokenSymbol}`;
 
-  const { writeContract, data: hash, error: writeError, isPending: isWritePending } = useWriteContract();
+  const {
+    writeContract,
+    data: hash,
+    error: writeError,
+    isPending: isWritePending,
+    reset: resetWrite
+  } = useWriteContract();
   const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });
   const isPending = isWritePending || isConfirming;
+  const pendingStakeRef = React.useRef<bigint | null>(null);
+  pendingStakeRef.current = pendingStakeAmount;
+
+  const [stakeError, setStakeError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
-    if (!isConfirmed || pendingStakeAmount === null) return;
+    if (!writeError) return;
+    setStakeError(
+      writeError.message.toLowerCase().includes("user rejected")
+        ? "Transaction cancelled."
+        : writeError.message.length > 120
+          ? `${writeError.message.slice(0, 120)}…`
+          : writeError.message
+    );
+    setPendingStakeAmount(null);
+    resetWrite();
+  }, [writeError, resetWrite]);
 
-    const amount = pendingStakeAmount;
+  React.useEffect(() => {
+    if (!isConfirmed || pendingStakeRef.current === null) return;
+
+    const amount = pendingStakeRef.current;
     setPendingStakeAmount(null);
     void refetchAllowance();
 
@@ -155,7 +182,7 @@ export function useStaking() {
       functionName: "stake",
       args: [amount]
     });
-  }, [isConfirmed, pendingStakeAmount, refetchAllowance, writeContract]);
+  }, [isConfirmed, refetchAllowance, writeContract]);
 
   React.useEffect(() => {
     if (isConfirmed) {
@@ -172,6 +199,8 @@ export function useStaking() {
   const stake = React.useCallback(
     (amount: bigint) => {
       if (!address || amount === 0n) return;
+      setStakeError(null);
+      resetWrite();
 
       if (needsApproval(amount)) {
         setPendingStakeAmount(amount);
@@ -191,8 +220,16 @@ export function useStaking() {
         args: [amount]
       });
     },
-    [address, needsApproval, stakingToken, writeContract]
+    [address, needsApproval, resetWrite, stakingToken, writeContract]
   );
+
+  const isWalletBalanceLoading =
+    Boolean(address) &&
+    stakingToken !== "0x0000000000000000000000000000000000000000" &&
+    isWalletBalancePending &&
+    walletBalance === undefined;
+  const isStakedLoading =
+    Boolean(address) && isStakedPending && staked === undefined;
 
   const unstake = React.useCallback(
     (amount: bigint) => {
@@ -226,6 +263,10 @@ export function useStaking() {
     stake,
     unstake,
     isPending,
-    error: writeError?.message ?? null
+    error: stakeError,
+    clearStakeError: () => {
+      setStakeError(null);
+      resetWrite();
+    }
   };
 }

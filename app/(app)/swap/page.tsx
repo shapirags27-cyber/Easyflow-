@@ -13,7 +13,7 @@ import { useSwap } from "@/lib/hooks/useSwap";
 
 export default function SwapPage() {
   const { isConnected } = useAccount();
-  const [amountIn, setAmountIn] = React.useState("0.1");
+  const [amountIn, setAmountIn] = React.useState("");
   const [slippageBps, setSlippageBps] = React.useState(50);
   const {
     tokenIn,
@@ -79,6 +79,7 @@ export default function SwapPage() {
               <div className="mt-2 flex gap-2">
                 <Input
                   className="min-w-0 flex-1 border-0 bg-transparent text-2xl font-semibold"
+                  placeholder="0.0"
                   value={amountIn}
                   onChange={(e) => {
                     clearSwapError();

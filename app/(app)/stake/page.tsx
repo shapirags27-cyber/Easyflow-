@@ -12,7 +12,7 @@ import { useStaking } from "@/lib/hooks/useStaking";
 
 export default function StakePage() {
   const { address, isConnected } = useAccount();
-  const [stakeAmount, setStakeAmount] = React.useState("10");
+  const [stakeAmount, setStakeAmount] = React.useState("");
   const [unstakeAmount, setUnstakeAmount] = React.useState("");
   const {
     tokenSymbol,
@@ -31,11 +31,12 @@ export default function StakePage() {
     stake,
     unstake,
     isPending,
-    error
+    error,
+    clearStakeError
   } = useStaking();
 
   React.useEffect(() => {
-    setStakeAmount("10");
+    setStakeAmount("");
     setUnstakeAmount("");
   }, [address]);
 
@@ -68,6 +69,26 @@ export default function StakePage() {
       setUnstakeAmount(formatUnits(stakedRaw, tokenDecimals));
     }
   };
+
+  const stakeDisabledReason = React.useMemo(() => {
+    if (!isConnected) return null;
+    if (isBalanceLoading) return "Loading balance…";
+    if (stakeAmountWei === 0n) return "Enter an amount to stake.";
+    if (walletBalanceRaw === 0n) {
+      return isLpStakingToken
+        ? "You need LP TOKEN in your wallet."
+        : `You need ${tokenSymbol} in your wallet.`;
+    }
+    if (stakeAmountWei > walletBalanceRaw) return `Insufficient ${tokenSymbol} balance.`;
+    return null;
+  }, [
+    isBalanceLoading,
+    isConnected,
+    isLpStakingToken,
+    stakeAmountWei,
+    tokenSymbol,
+    walletBalanceRaw
+  ]);
 
   return (
     <>
@@ -103,7 +124,14 @@ export default function StakePage() {
                 </button>
               </div>
               <div className="mt-2 flex gap-2">
-                <Input value={stakeAmount} onChange={(e) => setStakeAmount(e.target.value)} />
+                <Input
+                  placeholder="0.0"
+                  value={stakeAmount}
+                  onChange={(e) => {
+                    clearStakeError();
+                    setStakeAmount(e.target.value);
+                  }}
+                />
                 <span className="flex h-10 items-center rounded-md border border-border bg-secondary px-3 text-sm font-medium">
                   {tokenSymbol}
                 </span>
@@ -137,7 +165,11 @@ export default function StakePage() {
                     : `Stake ${tokenSymbol}`
                 : "Connect Wallet"}
             </Button>
-            {error ? <p className="text-center text-xs text-destructive">{error}</p> : null}
+            {error ? (
+              <p className="text-center text-xs text-destructive">{error}</p>
+            ) : stakeDisabledReason && !isPending ? (
+              <p className="text-center text-xs text-muted-foreground">{stakeDisabledReason}</p>
+            ) : null}
             <p className="text-center text-xs text-muted-foreground">+25 points per stake</p>
           </div>
         </div>
