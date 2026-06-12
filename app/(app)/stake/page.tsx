@@ -28,6 +28,10 @@ export default function StakePage() {
     totalStakedFormatted,
     needsApproval,
     pendingApproval,
+    pendingLabel,
+    isWopnStaking,
+    isStakingTokenReady,
+    requestFaucet,
     stake,
     unstake,
     isPending,
@@ -75,9 +79,9 @@ export default function StakePage() {
     if (isBalanceLoading) return "Loading balance…";
     if (stakeAmountWei === 0n) return "Enter an amount to stake.";
     if (walletBalanceRaw === 0n) {
-      return isLpStakingToken
-        ? "You need LP TOKEN in your wallet."
-        : `You need ${tokenSymbol} in your wallet.`;
+      return isWopnStaking
+        ? `You need ${tokenSymbol} in your wallet to stake.`
+        : `You need ${tokenSymbol} staking pool tokens. OPN and AMM LP tokens are different — use Get tokens below.`;
     }
     if (stakeAmountWei > walletBalanceRaw) return `Insufficient ${tokenSymbol} balance.`;
     return null;
@@ -85,6 +89,7 @@ export default function StakePage() {
     isBalanceLoading,
     isConnected,
     isLpStakingToken,
+    isWopnStaking,
     stakeAmountWei,
     tokenSymbol,
     walletBalanceRaw
@@ -102,11 +107,9 @@ export default function StakePage() {
             Pool token balance:{" "}
             {!isConnected ? "—" : isBalanceLoading ? "Loading…" : walletBalanceFormatted}
           </p>
-          {isConnected && !isBalanceLoading && walletBalanceRaw === 0n ? (
+          {isConnected && !isBalanceLoading && walletBalanceRaw === 0n && !isWopnStaking ? (
             <p className="mt-1 text-xs text-amber-400">
-              {isLpStakingToken
-                ? "You need LP TOKEN in your wallet to stake."
-                : `You need ${tokenSymbol} in your wallet to stake.`}
+              Staking uses {tokenSymbol} pool tokens, not native OPN or swap LP tokens.
             </p>
           ) : null}
 
@@ -149,6 +152,7 @@ export default function StakePage() {
               disabled={
                 !isConnected ||
                 isPending ||
+                !isStakingTokenReady ||
                 isBalanceLoading ||
                 stakeAmountWei === 0n ||
                 stakeAmountWei > walletBalanceRaw
@@ -158,7 +162,7 @@ export default function StakePage() {
               {isConnected
                 ? isPending
                   ? pendingApproval
-                    ? "Approving…"
+                    ? pendingLabel
                     : "Staking…"
                   : needsApproval(stakeAmountWei)
                     ? `Approve ${tokenSymbol}`
@@ -169,6 +173,17 @@ export default function StakePage() {
               <p className="text-center text-xs text-destructive">{error}</p>
             ) : stakeDisabledReason && !isPending ? (
               <p className="text-center text-xs text-muted-foreground">{stakeDisabledReason}</p>
+            ) : null}
+            {isConnected && !isBalanceLoading && walletBalanceRaw === 0n && !isWopnStaking ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                disabled={isPending}
+                onClick={() => void requestFaucet()}
+              >
+                {isPending ? "Minting…" : `Get ${tokenSymbol} for staking (testnet)`}
+              </Button>
             ) : null}
             <p className="text-center text-xs text-muted-foreground">+25 points per stake</p>
           </div>

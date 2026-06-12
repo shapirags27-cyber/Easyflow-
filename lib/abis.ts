@@ -62,6 +62,18 @@ export const stakingAbi = [
   { type: "function", name: "totalStaked", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] }
 ] as const;
 
+/** MockERC20 / Ownable test tokens used by the legacy staking pool. */
+export const mockErc20Abi = [
+  {
+    type: "function",
+    name: "mint",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "to", type: "address" }, { name: "amount", type: "uint256" }],
+    outputs: []
+  },
+  { type: "function", name: "owner", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] }
+] as const;
+
 /** WOPN — deposit() wraps native OPN, withdraw() unwraps. */
 export const wopnAbi = [
   {

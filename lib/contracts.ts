@@ -29,10 +29,19 @@ export const STAKING_TOKEN_SYMBOL =
   process.env.NEXT_PUBLIC_STAKING_TOKEN_SYMBOL ?? "OPN";
 
 export const contracts: ContractAddresses = {
-  pointsManager: "0x7eF09627A6F03784517b6fa7F7A0996C10ee6eA1",
-  protocolFees: "0x7F2EcE7D8A497a7A53a11475C082D02a1906b3cE",
+  pointsManager: publicAddress(
+    "NEXT_PUBLIC_POINTS_MANAGER_ADDRESS",
+    "0x7eF09627A6F03784517b6fa7F7A0996C10ee6eA1"
+  ),
+  protocolFees: publicAddress(
+    "NEXT_PUBLIC_PROTOCOL_FEES_ADDRESS",
+    "0x7F2EcE7D8A497a7A53a11475C082D02a1906b3cE"
+  ),
   multiSend: "0x159aE33fCf6449949F04C2B6c29507Daf80d9681",
-  staking: "0xD4164489C94970b1764eb23f2383c2ab237e3FEE",
+  staking: publicAddress(
+    "NEXT_PUBLIC_STAKING_ADDRESS",
+    "0x302D9425f6D5fFe7b4e0Af8cbf2c83b2ce443fa1"
+  ),
   ammFactory: AMM_FACTORY,
   ammRouter: AMM_ROUTER
 };
