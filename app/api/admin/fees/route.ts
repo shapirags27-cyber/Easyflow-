@@ -3,17 +3,13 @@ import type { Hex } from "viem";
 import { createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { iopnTestnet } from "@/lib/chains";
-import {
-  assertFeeBounds,
-  buildFeeUpdateMessage,
-  verifyAdminSignature
-} from "@/lib/server/admin-auth";
+import { assertFeeBounds } from "@/lib/server/admin-auth";
 import { encodeSetFeesTx, readProtocolFees } from "@/lib/server/fees";
 import { prisma } from "@/lib/db";
-import { ADMIN_ADDRESS } from "@/lib/admin";
 import { dbHealthCheck } from "@/lib/db";
+import { adminErrorResponse, requireAdmin } from "@/lib/server/admin/require-admin";
+import { getClientMeta, logAdminActivity } from "@/lib/server/admin/audit";
 
-/** Admin backend: read current fee configuration from chain. */
 export async function GET() {
   try {
     const fees = await readProtocolFees();
@@ -28,53 +24,33 @@ type PostBody = {
   swapFeeBps: number;
   multisendFeeBps: number;
   stakingFeeBps: number;
-  timestamp: number;
-  signature: Hex;
 };
 
-/**
- * Admin backend: validate admin signature + fee bounds, then either:
- * - submit on-chain tx when ADMIN_PRIVATE_KEY is set, or
- * - return encoded calldata for the admin wallet to execute.
- */
 export async function POST(req: Request) {
   try {
+    const session = await requireAdmin(req, "fees:write");
+    const meta = getClientMeta(req);
     const body = (await req.json()) as PostBody;
-    const { swapFeeBps, multisendFeeBps, stakingFeeBps, timestamp, signature } = body;
-
-    if (!signature || !timestamp) {
-      return NextResponse.json({ error: "Missing signature or timestamp" }, { status: 400 });
-    }
-
-    const now = Date.now();
-    if (Math.abs(now - timestamp) > 5 * 60 * 1000) {
-      return NextResponse.json({ error: "Signature expired" }, { status: 401 });
-    }
+    const { swapFeeBps, multisendFeeBps, stakingFeeBps } = body;
 
     assertFeeBounds({ swapFeeBps, multisendFeeBps, stakingFeeBps });
 
-    const message = buildFeeUpdateMessage({
-      swapFeeBps,
-      multisendFeeBps,
-      stakingFeeBps,
-      timestamp
-    });
-
-    const ok = await verifyAdminSignature({ message, signature });
-    if (!ok) {
-      return NextResponse.json({ error: "Invalid admin signature" }, { status: 403 });
-    }
-
     const tx = encodeSetFeesTx({ swapFeeBps, multisendFeeBps, stakingFeeBps });
-
     const feesPayload = { swapFeeBps, multisendFeeBps, stakingFeeBps };
+
     if (await dbHealthCheck()) {
       await prisma.adminAuditLog.create({
         data: {
-          admin: ADMIN_ADDRESS,
+          admin: session.email,
           action: "setFees",
           payload: feesPayload
         }
+      });
+      await logAdminActivity({
+        action: "fees_update",
+        adminId: session.adminId,
+        ...meta,
+        metadata: feesPayload
       });
     }
 
@@ -108,7 +84,7 @@ export async function POST(req: Request) {
         success: true,
         mode: "server-submitted",
         txHash: hash,
-        fees: { swapFeeBps, multisendFeeBps, stakingFeeBps }
+        fees: feesPayload
       });
     }
 
@@ -116,10 +92,9 @@ export async function POST(req: Request) {
       success: true,
       mode: "client-submit",
       transaction: tx,
-      fees: { swapFeeBps, multisendFeeBps, stakingFeeBps }
+      fees: feesPayload
     });
   } catch (e) {
-    const message = e instanceof Error ? e.message : "Fee update failed";
-    return NextResponse.json({ error: message }, { status: 400 });
+    return adminErrorResponse(e);
   }
 }

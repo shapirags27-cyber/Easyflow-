@@ -178,3 +178,100 @@ model PlatformStat {
   totalSwapped      String @default("0 OPN")
   pointsDistributed String @default("0")
 }
+
+// ─── Admin authentication (separate from user wallet auth) ───
+
+enum AdminRole {
+  SUPER_ADMIN
+  ADMIN
+  MODERATOR
+}
+
+model Admin {
+  id                String    @id @default(cuid())
+  email             String    @unique
+  passwordHash      String
+  role              AdminRole @default(ADMIN)
+  twoFactorEnabled  Boolean   @default(false)
+  twoFactorSecret   String?
+  lastLogin         DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  sessions          AdminSession[]
+  recoveryCodes     AdminRecoveryCode[]
+  activityLogs      AdminActivityLog[]
+  passwordResets    AdminPasswordReset[]
+  pointAdjustments  AdminPointAdjustment[]
+}
+
+model AdminSession {
+  id           String   @id @default(cuid())
+  tokenHash    String   @unique
+  expiresAt    DateTime
+  ipAddress    String?
+  userAgent    String?
+  createdAt    DateTime @default(now())
+
+  adminId      String
+  admin        Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId])
+  @@index([expiresAt])
+}
+
+model AdminRecoveryCode {
+  id        String   @id @default(cuid())
+  codeHash  String
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  adminId   String
+  admin     Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId])
+}
+
+model AdminPasswordReset {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  adminId   String
+  admin     Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId])
+}
+
+model AdminActivityLog {
+  id        String   @id @default(cuid())
+  action    String
+  success   Boolean  @default(true)
+  ipAddress String?
+  userAgent String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  adminId   String?
+  admin     Admin?   @relation(fields: [adminId], references: [id], onDelete: SetNull)
+
+  @@index([adminId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+model AdminPointAdjustment {
+  id        String   @id @default(cuid())
+  wallet    String
+  delta     Int
+  reason    String?
+  createdAt DateTime @default(now())
+
+  adminId   String
+  admin     Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([wallet])
+  @@index([adminId])
+}

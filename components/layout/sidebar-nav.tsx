@@ -4,10 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronDown, ChevronLeft, ChevronRight, X } from "lucide-react";
 import * as React from "react";
-import { adminNav, sidebarNav } from "@/lib/nav";
+import { sidebarNav } from "@/lib/nav";
 import { cn } from "@/lib/utils";
-import { ADMIN_ADDRESS } from "@/lib/admin";
-import { useAccount } from "wagmi";
 import { Logo } from "@/components/layout/logo";
 import { OpnPriceWidget } from "@/components/layout/opn-price-widget";
 
@@ -23,8 +21,6 @@ type SidebarNavProps = {
 
 export function SidebarNav({ collapsed = false, onNavigate }: SidebarNavProps) {
   const pathname = usePathname();
-  const { address } = useAccount();
-  const isAdmin = Boolean(address?.toLowerCase() === ADMIN_ADDRESS.toLowerCase());
   const [groupOpen, setGroupOpen] = React.useState<Record<string, boolean>>({});
 
   const linkClass = (active: boolean) =>
@@ -111,17 +107,6 @@ export function SidebarNav({ collapsed = false, onNavigate }: SidebarNavProps) {
           );
         })}
 
-        {isAdmin ? (
-          <Link
-            href={adminNav.href}
-            onClick={onNavigate}
-            title={collapsed ? adminNav.label : undefined}
-            className={linkClass(pathname === adminNav.href)}
-          >
-            <adminNav.icon className="h-[18px] w-[18px] shrink-0" />
-            {!collapsed ? adminNav.label : null}
-          </Link>
-        ) : null}
       </nav>
 
       {!collapsed ? <OpnPriceWidget /> : null}
