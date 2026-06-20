@@ -26,6 +26,18 @@ On the **web service** → **Variables** → add:
 Optional (admin fee backend auto-submit):
 - `ADMIN_PRIVATE_KEY` — only if server should submit fee txs
 
+**Admin login** (separate from wallet — required on web service):
+
+| Variable | Value |
+|----------|--------|
+| `ADMIN_SEED_EMAIL` | Admin sign-in email, e.g. `admin@easyflow.io` |
+| `ADMIN_SEED_PASSWORD` | Strong password (8+ characters) |
+
+Optional later: `ADMIN_SESSION_SECRET` (32+ chars) for a dedicated session signing key.
+
+On deploy, `build:railway` runs migrations and **auto-creates** the admin from these seed vars.
+Sign in at `/admin/login` with the same email and password.
+
 **Do not** put `PRIVATE_KEY` on Railway unless you deploy contracts from CI.
 
 ## 3. Deploy

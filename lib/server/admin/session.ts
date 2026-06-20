@@ -1,3 +1,4 @@
+import { createHash } from "crypto";
 import { cookies } from "next/headers";
 import { SignJWT, jwtVerify } from "jose";
 import type { AdminRole } from "@prisma/client";
@@ -18,11 +19,21 @@ export type AdminSessionPayload = {
 };
 
 function getSessionSecret(): Uint8Array {
-  const secret = process.env.ADMIN_SESSION_SECRET;
-  if (!secret || secret.length < 32) {
-    throw new Error("ADMIN_SESSION_SECRET must be set (min 32 chars).");
+  const explicit = process.env.ADMIN_SESSION_SECRET?.trim();
+  if (explicit && explicit.length >= 32) {
+    return new TextEncoder().encode(explicit);
   }
-  return new TextEncoder().encode(secret);
+
+  const email = process.env.ADMIN_SEED_EMAIL?.trim().toLowerCase();
+  const password = process.env.ADMIN_SEED_PASSWORD;
+  if (email && password) {
+    const derived = createHash("sha256")
+      .update(`easyflow-admin-session:${email}:${password}`)
+      .digest("base64url");
+    return new TextEncoder().encode(derived);
+  }
+
+  throw new Error("Set ADMIN_SEED_EMAIL and ADMIN_SEED_PASSWORD for admin login.");
 }
 
 export async function createAdminSession(

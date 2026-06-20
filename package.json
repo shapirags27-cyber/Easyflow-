@@ -6,9 +6,9 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "build:railway": "prisma generate && prisma migrate deploy && next build",
+    "build:railway": "prisma generate && prisma migrate deploy && node scripts/seed-admin.cjs && next build",
     "start": "next start",
-    "start:railway": "next start -p ${PORT:-3000}",
+    "start:railway": "node scripts/seed-admin.cjs && next start -p ${PORT:-3000}",
     "lint": "next lint",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "postinstall": "prisma generate",

@@ -3,12 +3,12 @@ const { PrismaClient } = require("@prisma/client");
 const bcrypt = require("bcryptjs");
 
 async function main() {
-  const email = process.env.ADMIN_SEED_EMAIL ?? "admin@easyflow.io";
+  const email = (process.env.ADMIN_SEED_EMAIL ?? "admin@easyflow.io").toLowerCase();
   const password = process.env.ADMIN_SEED_PASSWORD;
 
   if (!password) {
-    console.error("Set ADMIN_SEED_PASSWORD before running seed.");
-    process.exit(1);
+    console.log("Admin seed skipped: ADMIN_SEED_PASSWORD is not set.");
+    return;
   }
 
   if (password.length < 8) {
@@ -16,28 +16,36 @@ async function main() {
     process.exit(1);
   }
 
+  if (!process.env.DATABASE_URL) {
+    console.log("Admin seed skipped: DATABASE_URL is not set.");
+    return;
+  }
+
   const prisma = new PrismaClient();
-  const passwordHash = await bcrypt.hash(password, 12);
+  try {
+    const passwordHash = await bcrypt.hash(password, 12);
 
-  const admin = await prisma.admin.upsert({
-    where: { email: email.toLowerCase() },
-    create: {
-      email: email.toLowerCase(),
-      passwordHash,
-      role: "SUPER_ADMIN"
-    },
-    update: {
-      passwordHash,
-      role: "SUPER_ADMIN"
-    }
-  });
+    const admin = await prisma.admin.upsert({
+      where: { email },
+      create: {
+        email,
+        passwordHash,
+        role: "SUPER_ADMIN"
+      },
+      update: {
+        passwordHash,
+        role: "SUPER_ADMIN"
+      }
+    });
 
-  console.log("Super admin ready:", admin.email);
-  console.log("Visit /admin and click Sign in — 2FA setup required on first login.");
-  await prisma.$disconnect();
+    console.log("Super admin ready:", admin.email);
+    console.log("Visit /admin and click Sign in — 2FA setup required on first login.");
+  } finally {
+    await prisma.$disconnect();
+  }
 }
 
 main().catch((err) => {
-  console.error(err);
+  console.error("Admin seed failed:", err.message ?? err);
   process.exit(1);
 });
