@@ -15,7 +15,7 @@ type Step = "credentials" | "2fa" | "setup2fa";
 export function AdminLoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const next = searchParams.get("next") ?? "/admin";
+  const next = searchParams.get("next") ?? "/admin/dashboard";
 
   const [step, setStep] = React.useState<Step>("credentials");
   const [email, setEmail] = React.useState("");
@@ -248,8 +248,8 @@ export function AdminLoginForm() {
 
           <p className="mt-6 text-center text-xs text-muted-foreground">
             Platform administrators only.{" "}
-            <Link href="/dashboard" className="text-primary hover:underline">
-              Return to app
+            <Link href="/admin" className="text-primary hover:underline">
+              Back to admin portal
             </Link>
           </p>
         </CardContent>

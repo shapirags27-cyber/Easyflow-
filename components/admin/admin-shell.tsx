@@ -20,7 +20,7 @@ import type { AdminRole } from "@prisma/client";
 import { useAdminCsrf } from "@/lib/hooks/useAdminCsrf";
 
 const NAV = [
-  { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/points", label: "Points", icon: Star },
   { href: "/admin/users", label: "Users", icon: Users },
   { href: "/admin/tokens", label: "Tokens", icon: Coins },
@@ -48,7 +48,7 @@ export function AdminShell({ admin, children }: AdminShellProps) {
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-40 border-b border-border bg-card/80 backdrop-blur-xl">
         <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 md:px-6">
-          <Link href="/admin" className="flex items-center gap-2">
+          <Link href="/admin/dashboard" className="flex items-center gap-2">
             <Logo size={32} />
             <span className="font-semibold">EasyFlow Admin</span>
           </Link>

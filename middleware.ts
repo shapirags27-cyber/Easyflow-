@@ -2,7 +2,13 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { SESSION_COOKIE } from "@/lib/server/admin/session";
 
-const PUBLIC_ADMIN_PATHS = ["/admin/login"];
+function isPublicAdminPath(pathname: string) {
+  return (
+    pathname === "/admin" ||
+    pathname === "/admin/login" ||
+    pathname.startsWith("/admin/login/")
+  );
+}
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -11,7 +17,7 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  if (PUBLIC_ADMIN_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
+  if (isPublicAdminPath(pathname)) {
     return NextResponse.next();
   }
 
