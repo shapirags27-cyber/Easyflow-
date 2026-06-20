@@ -25,7 +25,7 @@ const NAV = [
   { href: "/admin/users", label: "Users", icon: Users },
   { href: "/admin/tokens", label: "Tokens", icon: Coins },
   { href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
-  { href: "/admin/settings", label: "Settings", icon: Settings }
+  { href: "/admin/settings", label: "Account & Security", icon: Settings }
 ];
 
 type AdminShellProps = {

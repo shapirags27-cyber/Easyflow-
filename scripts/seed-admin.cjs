@@ -39,7 +39,7 @@ async function main() {
     });
 
     console.log("Super admin ready:", admin.email);
-    console.log("Visit /admin and click Sign in — 2FA setup required on first login.");
+    console.log("Visit /admin and sign in — enable 2FA optionally under Account & Security.");
   } finally {
     await prisma.$disconnect();
   }

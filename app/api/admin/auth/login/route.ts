@@ -5,7 +5,8 @@ import {
   isAdminAuthConfigured
 } from "@/lib/server/admin/bootstrap";
 import { normalizeEmail, validateEmail, verifyPassword } from "@/lib/server/admin/password";
-import { createLoginChallenge } from "@/lib/server/admin/session";
+import { createAdminSession } from "@/lib/server/admin/session";
+import { createCsrfToken } from "@/lib/server/admin/csrf";
 import { getClientMeta, logAdminActivity } from "@/lib/server/admin/audit";
 
 type LoginBody = {
@@ -71,24 +72,22 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid email or password." }, { status: 401 });
     }
 
+    await createAdminSession(
+      { id: admin.id, email: admin.email, role: admin.role },
+      meta
+    );
+    const csrfToken = await createCsrfToken();
+
     await logAdminActivity({
-      action: "login_attempt",
+      action: "login_success",
       adminId: admin.id,
       ...meta
     });
 
-    if (!admin.twoFactorEnabled) {
-      await createLoginChallenge(admin.id);
-      return NextResponse.json({
-        requires2FASetup: true,
-        email: admin.email
-      });
-    }
-
-    await createLoginChallenge(admin.id);
     return NextResponse.json({
-      requires2FA: true,
-      email: admin.email
+      ok: true,
+      admin: { email: admin.email, role: admin.role },
+      csrfToken
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Login failed";

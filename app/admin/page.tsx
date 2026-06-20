@@ -35,8 +35,8 @@ export default async function AdminLandingPage() {
           </div>
           <h1 className="text-3xl font-bold tracking-tight md:text-4xl">Admin Portal</h1>
           <p className="mx-auto mt-3 max-w-lg text-muted-foreground">
-            Secure platform administration for EasyFlow. Email, password, and two-factor authentication
-            required — separate from user wallet login.
+            Secure platform administration for EasyFlow. Sign in with email and password — enable 2FA
+            anytime from Account & Security.
           </p>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
             <Button asChild size="lg" className="glow-primary">
@@ -53,7 +53,7 @@ export default async function AdminLandingPage() {
             <CardHeader>
               <Lock className="mb-2 h-5 w-5 text-primary" />
               <CardTitle className="text-base">Secure access</CardTitle>
-              <CardDescription>Password hashing, TOTP 2FA, and session-based auth.</CardDescription>
+              <CardDescription>Password hashing and optional 2FA from Account & Security.</CardDescription>
             </CardHeader>
           </Card>
           <Card className="glass border-white/10">
