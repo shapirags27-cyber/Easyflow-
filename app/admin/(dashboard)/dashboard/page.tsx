@@ -16,8 +16,13 @@ type FeeSnapshot = {
 };
 
 export default function AdminDashboardPage() {
-  const { adminFetch } = useAdminCsrf();
+  const { adminFetch, adminGet } = useAdminCsrf();
   const [fees, setFees] = React.useState<FeeSnapshot | null>(null);
+  const [overview, setOverview] = React.useState<{
+    tvl: string;
+    userTransactions: number;
+    pointAdjustments: number;
+  } | null>(null);
   const [swapFeeBps, setSwapFeeBps] = React.useState("30");
   const [multisendFeeBps, setMultisendFeeBps] = React.useState("0");
   const [stakingFeeBps, setStakingFeeBps] = React.useState("0");
@@ -25,7 +30,7 @@ export default function AdminDashboardPage() {
   const [loading, setLoading] = React.useState(false);
 
   const loadFees = React.useCallback(async () => {
-    const res = await fetch("/api/admin/fees");
+    const res = await adminGet("/api/admin/fees");
     const json = await res.json();
     if (json.fees) {
       setFees(json.fees);
@@ -33,11 +38,24 @@ export default function AdminDashboardPage() {
       setMultisendFeeBps(String(json.fees.multisendFeeBps));
       setStakingFeeBps(String(json.fees.stakingFeeBps));
     }
-  }, []);
+  }, [adminGet]);
+
+  const loadOverview = React.useCallback(async () => {
+    const res = await adminGet("/api/admin/analytics");
+    if (res.ok) {
+      const json = await res.json();
+      setOverview({
+        tvl: json.platform?.tvl ?? "—",
+        userTransactions: json.counts?.userTransactions ?? 0,
+        pointAdjustments: json.counts?.pointAdjustments ?? 0
+      });
+    }
+  }, [adminGet]);
 
   React.useEffect(() => {
-    loadFees();
-  }, [loadFees]);
+    void loadFees();
+    void loadOverview();
+  }, [loadFees, loadOverview]);
 
   async function updateFees() {
     setLoading(true);
@@ -66,8 +84,31 @@ export default function AdminDashboardPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Dashboard</h1>
-        <p className="text-sm text-muted-foreground">Protocol fee controls and overview.</p>
+        <p className="text-sm text-muted-foreground">Protocol fee controls and platform overview.</p>
       </div>
+
+      {overview ? (
+        <div className="grid gap-4 sm:grid-cols-3">
+          <Card className="glass border-white/5">
+            <CardHeader className="pb-2">
+              <CardDescription>TVL</CardDescription>
+              <CardTitle className="text-xl">{overview.tvl}</CardTitle>
+            </CardHeader>
+          </Card>
+          <Card className="glass border-white/5">
+            <CardHeader className="pb-2">
+              <CardDescription>User transactions</CardDescription>
+              <CardTitle className="text-xl">{overview.userTransactions}</CardTitle>
+            </CardHeader>
+          </Card>
+          <Card className="glass border-white/5">
+            <CardHeader className="pb-2">
+              <CardDescription>Point adjustments</CardDescription>
+              <CardTitle className="text-xl">{overview.pointAdjustments}</CardTitle>
+            </CardHeader>
+          </Card>
+        </div>
+      ) : null}
 
       <Card className="glass border-white/5">
         <CardHeader>

@@ -44,5 +44,11 @@ export function useAdminCsrf() {
     [csrfToken, refreshCsrf]
   );
 
-  return { csrfToken, refreshCsrf, adminFetch };
+  const adminGet = React.useCallback(
+    (input: string, init: RequestInit = {}) =>
+      fetch(input, { ...init, credentials: "same-origin" }),
+    []
+  );
+
+  return { csrfToken, refreshCsrf, adminFetch, adminGet };
 }

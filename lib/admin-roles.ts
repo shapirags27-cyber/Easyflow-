@@ -37,6 +37,7 @@ const ROLE_PERMISSIONS: Record<AdminRole, AdminPermission[]> = {
     "points:read",
     "points:write",
     "users:read",
+    "users:write",
     "tokens:read",
     "tokens:write",
     "analytics:read",
@@ -48,6 +49,7 @@ const ROLE_PERMISSIONS: Record<AdminRole, AdminPermission[]> = {
     "points:read",
     "points:write",
     "users:read",
+    "users:write",
     "analytics:read",
     "audit:read"
   ]
